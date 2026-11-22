@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Project Kundial is a standalone Kerbal Space Program 1.12.x mod. Browse the project and download its source code.">
+  <title>Project Kundial · KSP Source Code</title>
+  <link rel="icon" href="assets/sundial-mark.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+  <script src="links.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap nav">
+      <a class="brand" href="./"><img src="assets/sundial-mark.svg" width="28" height="28" alt="">Project Kundial</a>
+      <nav aria-label="Main navigation">
+        <a href="#features">Features</a>
+        <a href="#build">Build</a>
+        <a href="#credits">Credits</a>
+      </nav>
+    </div>
+  </header>
+  <main class="wrap" id="main">
+    <section class="hero" aria-labelledby="title">
+      <div class="hero-copy">
+        <p class="meta"><span>KSP 1.12.x</span><span>v0.1</span></p>
+        <h1 id="title">Project<br> Kundial</h1>
+        <p class="lede">The source site for the Project Sundial mod, with a custom payload, an animated fireball and mushroom cloud, and a shock front that sweeps across Kerbin.</p>
+        <div class="actions">
+          <a class="button primary" href="downloads/project-kundial-v0.1-source.zip" download>Download source <span aria-hidden="true">↓</span></a>
+          <a class="button secondary" data-repo-link href="#build">Build locally <span aria-hidden="true">↘</span></a>
+        </div>
+      </div>
+      <figure class="preview">
+        <img src="assets/sundial-flight.webp" width="1440" height="844" alt="Project Kundial's glowing orange fireball above Kerbin, surrounded by an expanding shock front.">
+        <figcaption>Project Kundial firing sequence on stock Kerbin</figcaption>
+      </figure>
+    </section>
+    <section id="features" class="section" aria-labelledby="features-title">
+      <h2 id="features-title">In flight</h2>
+      <div class="feature-grid">
+        <article>
+          <h3>Fireball to mushroom cloud</h3>
+          <p>A white-hot core cools to amber and lifts into an animated mushroom cloud with a rolling rim and a wide cap.</p>
+        </article>
+        <article>
+          <h3>Shock front and camera</h3>
+          <p>A curved shock front leaves a diffuse wake. A brief tremor plays when it passes the flight camera.</p>
+        </article>
+        <article>
+          <h3>Craft damage</h3>
+          <p>At detonation, parts on loaded craft with active physics can be destroyed within a 2.2 km radius. The visual effects extend farther across Kerbin.</p>
+        </article>
+      </div>
+    </section>
+    <section id="build" class="section build" aria-labelledby="build-title">
+      <div>
+        <h2 id="build-title">Build from source</h2>
+        <p>Download and extract the source. Install Mono with <code>mcs</code> and use the managed assemblies from your own copy of KSP 1.12.x.</p>
+        <p>After building, copy <code>GameData/ProjectSundial</code> into your KSP installation’s existing <code>GameData</code> folder. In the editor, search for <strong>Sundial</strong>.</p>
+      </div>
+      <div class="command">
+        <p class="command-label">macOS Terminal</p>
+        <pre><code>sh build.sh "/path/to/KSP.app/Contents/Resources/Data/Managed"</code></pre>
+        <p>On Linux or Windows with a POSIX shell, pass your <code>KSP_Data/Managed</code> path instead.</p>
+      </div>
+    </section>
+    <section id="credits" class="section credits" aria-labelledby="credits-title">
+      <h2 id="credits-title">Credits</h2>
+      <p>The mod is a fictional adaptation of a historical proposal. The source README credits the historical records, research, and <a href="https://github.com/taniwha/io_object_mu">io_object_mu</a> for model authoring.</p>
+    </section>
+  </main>
+  <footer class="site-footer">
+    <div class="wrap footer"><span>Project Kundial</span><a href="#main">Back to top ↑</a></div>
+  </footer>
+</body>
+</html>
