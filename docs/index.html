@@ -57,13 +57,17 @@
     <section id="build" class="section build" aria-labelledby="build-title">
       <div>
         <h2 id="build-title">Build from source</h2>
-        <p>Download and extract the source. Install Mono with <code>mcs</code> and use the managed assemblies from your own copy of KSP 1.12.x.</p>
+        <p>Download and extract the source. Use the managed assemblies from your own copy of KSP 1.12.x. The <a href="https://github.com/Notallyourway1/project-kundial/archive/refs/heads/main.zip">GitHub checkout</a> includes the Windows and POSIX build scripts.</p>
         <p>After building, copy <code>GameData/ProjectSundial</code> into your KSP installation’s existing <code>GameData</code> folder. In the editor, search for <strong>Sundial</strong>.</p>
       </div>
       <div class="command">
+        <p class="command-label">Windows · Developer Command Prompt</p>
+        <pre><code>build-windows.cmd "C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program\KSP_x64_Data\Managed"</code></pre>
+        <p>Use Visual Studio Build Tools with the .NET desktop build tools workload. <a href="https://github.com/Notallyourway1/project-kundial#windows">Full Windows steps</a></p>
+        <br>
         <p class="command-label">macOS Terminal</p>
         <pre><code>sh build.sh "/path/to/KSP.app/Contents/Resources/Data/Managed"</code></pre>
-        <p>On Linux or Windows with a POSIX shell, pass your <code>KSP_Data/Managed</code> path instead.</p>
+        <p>On Linux, use the Managed folder under <code>KSP_Data</code> or <code>KSP_x64_Data</code>.</p>
       </div>
     </section>
     <section id="credits" class="section credits" aria-labelledby="credits-title">

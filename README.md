@@ -10,11 +10,11 @@ In July 1954, physicist Edward Teller presented Livermore's Sundial proposal to 
 
 The ribbed casing is a fictional depiction for KSP. The part's dimensions, mass, and the distances and timings of its effects are gameplay choices.
 
-## Install or upgrade on macOS
+## Install or upgrade
 
 1. Quit KSP and build the plugin from this source checkout as described below.
 2. Open the KSP folder that contains your existing `GameData` folder.
-3. Copy the checkout's `GameData/ProjectSundial` folder into your existing `GameData`. If Finder asks, replace the old `ProjectSundial` folder. The DLL should be at `GameData/ProjectSundial/Plugins/ProjectSundial.dll`.
+3. Copy the checkout's `GameData/ProjectSundial` folder into your existing `GameData`. If your file manager asks, replace the old `ProjectSundial` folder. The DLL should be at `GameData/ProjectSundial/Plugins/ProjectSundial.dll`.
 4. Start KSP and find **Project Sundial Payload** under **Utility** or search for **Sundial**. Career and Science modes unlock it with Heavy Rocketry. The v0.1 part identifier is retained for existing craft and saves.
 
 ## Fly a test
@@ -36,7 +36,27 @@ The ZIP includes the plugin source; the compiled DLL must be rebuilt for this ve
 
 ## Building
 
-To build the DLL, compile `Source/*.cs` as a class library named `ProjectSundial` against your KSP `Assembly-CSharp.dll`, `UnityEngine.dll` and the other `UnityEngine.*Module.dll` files from `KSP_Data/Managed` (macOS: inside the app bundle's `Resources/Data/Managed`). Place the output at `GameData/ProjectSundial/Plugins/ProjectSundial.dll`.
+### Windows
+
+1. Install [Visual Studio Build Tools](https://visualstudio.microsoft.com/downloads/) with the **.NET desktop build tools** workload.
+2. Open **Developer Command Prompt for Visual Studio** from the Start menu and change to the project folder. Use `cd /d` if it is on a different drive.
+3. Run the Windows build script with the path to your own copy of KSP 1.12.x. For a default Steam installation:
+
+```bat
+build-windows.cmd "C:\Program Files (x86)\Steam\steamapps\common\Kerbal Space Program\KSP_x64_Data\Managed"
+```
+
+Use the folder containing `Assembly-CSharp.dll`. Some installations use `KSP_Data\Managed`. The script writes `GameData\ProjectSundial\Plugins\ProjectSundial.dll`. Then follow the [install steps](#install-or-upgrade) to copy the full mod folder into KSP.
+
+### macOS and Linux
+
+With Mono and `mcs` installed, run the POSIX build script. On macOS, pass the Managed directory inside the app bundle.
+
+```sh
+sh build.sh "/path/to/KSP.app/Contents/Resources/Data/Managed"
+```
+
+On Linux, pass the Managed directory under `KSP_Data` or `KSP_x64_Data`, depending on your install.
 
 Run `Source/BuildCasing.py ASSET_DIRECTORY FONT.ttf` with Pillow installed and the io_object_mu project’s `mu.py` on the Python module path to regenerate the casing assets.
 
