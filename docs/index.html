@@ -7,7 +7,6 @@
   <title>Project Kundial · KSP Source Code</title>
   <link rel="icon" href="assets/sundial-mark.svg" type="image/svg+xml">
   <link rel="stylesheet" href="styles.css">
-  <script src="links.js" defer></script>
 </head>
 <body>
   <a class="skip-link" href="#main">Skip to content</a>
@@ -15,6 +14,7 @@
     <div class="wrap nav">
       <a class="brand" href="./"><img src="assets/sundial-mark.svg" width="28" height="28" alt="">Project Kundial</a>
       <nav aria-label="Main navigation">
+        <a href="#install">Install</a>
         <a href="#features">Features</a>
         <a href="#build">Build</a>
         <a href="#credits">Credits</a>
@@ -28,14 +28,23 @@
         <h1 id="title">Project<br> Kundial</h1>
         <p class="lede">The source site for the Project Sundial mod, with a custom payload, an animated fireball and mushroom cloud, and a shock front that sweeps across Kerbin.</p>
         <div class="actions">
-          <a class="button primary" href="downloads/project-kundial-v0.6.1-source.zip" download>Download source <span aria-hidden="true">↓</span></a>
-          <a class="button secondary" data-repo-link href="#build">Build locally <span aria-hidden="true">↘</span></a>
+          <a class="button primary" href="downloads/project-kundial-v0.6.1-install.zip" download>Download mod <span aria-hidden="true">↓</span></a>
+          <a class="button secondary" href="downloads/project-kundial-v0.6.1-source.zip" download>Download source <span aria-hidden="true">↓</span></a>
         </div>
       </div>
       <figure class="preview">
         <img src="assets/sundial-flight.webp" width="1440" height="844" alt="Project Kundial's glowing orange fireball above Kerbin, surrounded by an expanding shock front.">
         <figcaption>Project Kundial firing sequence on stock Kerbin</figcaption>
       </figure>
+    </section>
+    <section id="install" class="section" aria-labelledby="install-title">
+      <h2 id="install-title">Install and activate</h2>
+      <ol>
+        <li>Quit KSP and extract the mod ZIP.</li>
+        <li>Copy <code>GameData/ProjectSundial</code> into your KSP installation’s existing <code>GameData</code> folder. Replace the existing <code>ProjectSundial</code> folder if prompted.</li>
+        <li>Restart KSP. In flight, right-click <strong>Project Sundial Payload</strong>, select <strong>Arm Sundial</strong>, then select <strong>Start Detonation Countdown</strong>.</li>
+      </ol>
+      <p>The mod ZIP includes <code>ProjectSundial.dll</code>. If the buttons are missing, check that the DLL is at <code>GameData/ProjectSundial/Plugins/ProjectSundial.dll</code> inside your KSP installation.</p>
     </section>
     <section id="features" class="section" aria-labelledby="features-title">
       <h2 id="features-title">In flight</h2>

@@ -10,10 +10,12 @@ The ribbed casing is a fictional depiction for KSP. The part's dimensions, mass,
 
 ## Install or upgrade
 
-1. Quit KSP, extract the source ZIP, and [build the plugin](#building).
+1. Quit KSP and extract the [ready-to-install ZIP](https://notallyourway1.github.io/project-kundial/downloads/project-kundial-v0.6.1-install.zip). It includes the compiled plugin. If you downloaded the source ZIP, [build the plugin](#building) first.
 2. Open the KSP folder that contains your existing `GameData` folder.
 3. Copy the archive's `GameData/ProjectSundial` folder into your existing `GameData`. If your file manager asks, replace the old `ProjectSundial` folder. The DLL should be at `GameData/ProjectSundial/Plugins/ProjectSundial.dll`.
 4. Start KSP and find **Project Sundial Payload** under **Utility** or search for **Sundial**. Career and Science modes unlock it with Heavy Rocketry. The v0.1 part identifier is retained for existing craft and saves.
+
+If the part shows up in KSP but has no activation buttons in flight, check the DLL path in step 3. Restart KSP after copying the plugin.
 
 ## Fly a test
 
