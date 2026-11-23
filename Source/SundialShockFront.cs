@@ -7,7 +7,7 @@ namespace ProjectSundial
     internal sealed class SundialShockFront
     {
         private const int Segments = 192;
-        private const float Duration = 28f;
+        private const float Duration = 38f;
 
         private static readonly float[] Across = { 0f, 0.12f, 0.28f, 0.46f, 0.63f, 0.74f, 0.83f, 0.89f, 0.95f, 1f };
         private static readonly float[] Opacity = { 0f, 0.13f, 0.24f, 0.35f, 0.41f, 0.49f, 0.73f, 0.96f, 0.46f, 0f };
@@ -23,6 +23,7 @@ namespace ProjectSundial
         private bool observedCamera;
         private bool passedCamera;
         private float previousOffset;
+        private float previousFront;
 
         internal SundialShockFront(Transform parent, Material material, double surfaceRadius, float range)
         {
@@ -72,8 +73,11 @@ namespace ProjectSundial
         {
             float progress = Mathf.Clamp01(elapsed / Duration);
             float front = range * Mathf.Pow(progress, 0.74f);
-            if (elapsed < Duration)
+            if (front > previousFront)
+            {
                 CheckCameraCrossing(front, eye, observeCamera);
+                previousFront = front;
+            }
 
             renderer.enabled = elapsed > 0f && elapsed < Duration;
             if (!renderer.enabled)
@@ -81,7 +85,8 @@ namespace ProjectSundial
 
             float spread = Mathf.Sqrt(progress);
             float width = Mathf.Min(front * 0.78f, range * Mathf.Lerp(0.020f, 0.26f, spread));
-            float opacity = Mathf.Clamp01(elapsed * 2f) * (1f - Mathf.SmoothStep(0.05f, 1f, progress)) * 0.70f;
+            float fade = Mathf.Sqrt(1f - Mathf.SmoothStep(0.05f, 1f, progress));
+            float opacity = Mathf.Clamp01(elapsed * 2f) * fade * 0.70f;
             float rise = range * Mathf.Lerp(0.0007f, 0.023f, spread);
             Color dust = new Color(0.69f, 0.59f, 0.46f);
             Color condensation = new Color(0.92f, 0.92f, 0.88f);
@@ -131,14 +136,15 @@ namespace ProjectSundial
             double radiusAtEye = surfaceRadius + eye.y;
             float cameraArc = (float)(surfaceRadius * Math.Atan2(horizontal, radiusAtEye));
             float offset = cameraArc - front;
-            // previousOffset can be exactly 0 on the first frame when the camera sits directly
-            // above ground zero, so treat "not yet reached" as >= 0 rather than > 0.
-            if (offset <= 0f && observedCamera && previousOffset >= 0f)
+            // With no earlier camera sample, compare the current position to the last
+            // radius so a crossing can still register on the first rendered frame.
+            float offsetBefore = observedCamera ? previousOffset : cameraArc - previousFront;
+            if (offset <= 0f && offsetBefore >= 0f)
             {
                 passedCamera = true;
                 float height = (float)(Math.Sqrt(horizontal * horizontal + radiusAtEye * radiusAtEye) - surfaceRadius);
-                float heightFactor = Mathf.SmoothStep(1f, 0f, Mathf.Clamp01(Mathf.Abs(height) / (range * 0.16f)));
-                float distanceFactor = Mathf.Lerp(0.92f, 0.28f, cameraArc / range);
+                float heightFactor = Mathf.SmoothStep(1f, 0f, Mathf.Clamp01(Mathf.Abs(height) / (range * 0.40f)));
+                float distanceFactor = Mathf.Lerp(0.92f, 0.38f, cameraArc / range);
                 SundialShockShake.Play(heightFactor * distanceFactor);
             }
 

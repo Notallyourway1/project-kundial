@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 
-[assembly: AssemblyVersion("0.6.1.0")]
+[assembly: AssemblyVersion("0.6.2.0")]
 [assembly: KSPAssembly("ProjectSundial", 0, 6)]
 
 namespace ProjectSundial
@@ -11,8 +11,8 @@ namespace ProjectSundial
     {
         [KSPField] public float countdownSeconds = 10f;
         [KSPField] public float blastRadius = 2200f;
-        [KSPField] public float visualRadius = 8500f;
-        [KSPField] public float fireballRadius = 2400f;
+        [KSPField] public float visualRadius = 12000f;
+        [KSPField] public float fireballRadius = 2800f;
 
         [KSPField(guiActive = true, guiActiveEditor = true, guiName = "Proposed yield")]
         public string proposedYield = "10,000 Mt TNT (10 Gt)";

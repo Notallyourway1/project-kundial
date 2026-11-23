@@ -7,7 +7,7 @@ namespace ProjectSundial
     internal sealed class SundialShockShake : MonoBehaviour
     {
         private const float Duration = 1.05f;
-        private const float PeakAngle = 2.0f;
+        private const float PeakAngle = 1.6f;
         private static SundialShockShake active;
         private readonly Dictionary<Camera, Quaternion> rotations = new Dictionary<Camera, Quaternion>();
         private float start;

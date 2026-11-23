@@ -15,11 +15,10 @@ namespace ProjectSundial
         private const float CloudGrowthTime = 40f;
         private const float CapRadiusRatio = 1.25f;
 
-        // Kerbin-scale cloud: the reference footage shows a cloud top near 100 km over Earth,
-        // and Kerbin is about a tenth of Earth's radius (600 km against 6371 km).
-        private const float KerbinCloudTop = 10000f;
-        private const float EarlyCloudTop = 2500f;
-        private const float EarlyCapRadius = 1200f;
+        // Cloud height above the burst in stock Kerbin conditions.
+        private const float KerbinCloudTop = 11000f;
+        private const float EarlyCloudTop = 2800f;
+        private const float EarlyCapRadius = 1350f;
         private const float FireballPeakTime = 5f;
         private const float CloudHandoffStart = 6f;
         private const float CloudHandoffEnd = 16f;
