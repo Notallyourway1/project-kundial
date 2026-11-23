@@ -15,7 +15,7 @@ if ! command -v "$compiler" >/dev/null 2>&1; then
     exit 1
 fi
 
-for assembly in mscorlib System Assembly-CSharp UnityEngine.CoreModule UnityEngine.PhysicsModule; do
+for assembly in mscorlib System Assembly-CSharp UnityEngine.CoreModule UnityEngine.IMGUIModule UnityEngine.PhysicsModule; do
     if [ ! -f "$managed/$assembly.dll" ]; then
         printf 'Missing assembly %s.dll in %s\n' "$assembly" "$managed" >&2
         exit 1
@@ -29,6 +29,7 @@ mkdir -p "$(dirname "$output")"
     -r:"$managed/System.dll" \
     -r:"$managed/Assembly-CSharp.dll" \
     -r:"$managed/UnityEngine.CoreModule.dll" \
+    -r:"$managed/UnityEngine.IMGUIModule.dll" \
     -r:"$managed/UnityEngine.PhysicsModule.dll" \
     -out:"$output" "$project"/Source/*.cs
 printf 'Built %s\n' "$output"

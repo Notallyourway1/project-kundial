@@ -11,4 +11,4 @@ The website is in `docs/` and uses plain HTML, CSS, and JavaScript.
 
 ## Update the source download
 
-The site's download is a versioned snapshot in `docs/downloads/`. When releasing a new version, regenerate that archive from the tracked source and part assets, then update the filename and version shown in `docs/index.html`.
+The site's download is a versioned snapshot in `docs/downloads/`. When releasing a new version, package `Source/`, the tracked files in `GameData/`, `README.md`, `PUBLISHING.md`, `build.sh` and `build-windows.cmd` at the root of the ZIP. Exclude compiled DLLs and KSP assemblies. Update the download filename and version shown in `docs/index.html`.

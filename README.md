@@ -1,8 +1,6 @@
-# Project Kundial v0.1
+# Project Kundial v0.6.1
 
-This release contains the Project Sundial Payload plugin, assembly version 0.5.7.
-
-A standalone part for Kerbal Space Program 1.12.x.
+Project Sundial Payload is a standalone part for Kerbal Space Program 1.12.x.
 
 ## Historical background
 
@@ -12,16 +10,16 @@ The ribbed casing is a fictional depiction for KSP. The part's dimensions, mass,
 
 ## Install or upgrade
 
-1. Quit KSP and build the plugin from this source checkout as described below.
+1. Quit KSP, extract the source ZIP, and [build the plugin](#building).
 2. Open the KSP folder that contains your existing `GameData` folder.
-3. Copy the checkout's `GameData/ProjectSundial` folder into your existing `GameData`. If your file manager asks, replace the old `ProjectSundial` folder. The DLL should be at `GameData/ProjectSundial/Plugins/ProjectSundial.dll`.
+3. Copy the archive's `GameData/ProjectSundial` folder into your existing `GameData`. If your file manager asks, replace the old `ProjectSundial` folder. The DLL should be at `GameData/ProjectSundial/Plugins/ProjectSundial.dll`.
 4. Start KSP and find **Project Sundial Payload** under **Utility** or search for **Sundial**. Career and Science modes unlock it with Heavy Rocketry. The v0.1 part identifier is retained for existing craft and saves.
 
 ## Fly a test
 
 The 24-tonne KSP part is 11 m long and tapers from a 3.75 m body to a 2.5 m stack mount. Existing craft retain their part but may need a larger fairing and more lift capacity. Add a stock decoupler if you want to release it in flight. On an uncrewed Sandbox test craft, right-click the payload, select **Arm Sundial**, then **Start Detonation Countdown**. The fuse runs for 10 seconds of game time. **Disarm / Cancel Countdown** returns it to Safe. The editor's Action Groups tab offers the same controls.
 
-In an atmosphere, a bright textured core and its own soft halo form a fireball with a **25 km visual radius** (50 km across). The fireball swells from the initial flash and slows as it grows. Its surface churns and cools from white to amber, with a soft, shifting halo. Smoke fades in after the fireball peaks. The hot center rises into the rolling cap, which cools to slate grey with pale billows and an amber underside. Animated 3D billows build the crown, rolling rim, and smoke column, while a low dust skirt and a pale shock front spread outward. The front follows the planet’s curvature with a raised, uneven crest and a broad, diffuse dust wake. The front triggers a stronger shake lasting about one second when it reaches your flight camera. The shake is weaker at higher altitudes and longer distances. For a sea-level burst on stock Kerbin, the cloud tops out near **36 km**, with a cap that fans out to roughly **50 km across**. The height follows the atmosphere remaining above the burst. A vacuum detonation uses a short flash and expanding glow. Watch the effects in flight view. Sundial temporarily widens the stock destruction-camera zoom limits to include your selected distance when the craft you are viewing is hit.
+In an atmosphere, a bright textured core and its own soft halo form a fireball with a **2.4 km visual radius** (4.8 km across, scaled to Kerbin). The fireball swells from the initial flash and slows as it grows. Its surface churns and cools from white to gold-orange, with bright cream veins running across it and a soft, shifting halo. A burst close to the camera opens with a white-out flash. Smoke fades in after the fireball peaks. The hot center rises into a broad, flat-topped mushroom cap of cream billows lit by the sun, with cool blue-grey shading, glowing orange patches, a bright warm underside and a dark reddish stem that flares at its base. Animated 3D billows build the crown, rolling rim, underside and smoke column, while a low dust skirt and a pale shock front spread outward. The front follows the planet’s curvature with a raised, uneven crest and a broad, diffuse dust wake. The front triggers a stronger shake lasting about one second when it reaches your flight camera. The shake is weaker at higher altitudes and longer distances. For a sea-level burst on stock Kerbin, the cloud tops out near **10 km**, with a cap that fans out to roughly **25 km across**, about two and a half times as wide as the cloud is tall. The height is capped to 90% of the atmosphere remaining above the burst. The whole effect lasts about 80 seconds. A vacuum detonation uses a short flash and expanding glow. Watch the effects in flight view. Sundial temporarily widens the stock destruction-camera zoom limits to include your selected distance when the craft you are viewing is hit.
 
 The damage reaches parts within 2.2 km on same-body vessels with active physics, including the launch vehicle if it remains in range. Other Sundial payloads inside that radius detonate with their own effect. The timer persists across quicksaves and vessel switches. If the fuse expires while the payload is packed or unloaded, detonation waits until its physics resume.
 
@@ -32,7 +30,7 @@ The damage reaches parts within 2.2 km on same-body vessels with active physics,
 - U.S. Department of Energy, [Decision and Order on Sundial records](https://www.energy.gov/oha/articles/fic-15-0005-matter-alex-wellerstein), on the partial release of Sundial and related project records.
 - taniwha, [io_object_mu](https://github.com/taniwha/io_object_mu), used to export and verify the KSP model.
 
-The ZIP includes the plugin source; the compiled DLL must be rebuilt for this version (see **Building**). It does not require DLC or other mods.
+The source ZIP includes the part assets and build scripts. Build `ProjectSundial.dll` before installing. The mod requires no DLC or other mods.
 
 ## Building
 
@@ -60,6 +58,19 @@ On Linux, pass the Managed directory under `KSP_Data` or `KSP_x64_Data`, dependi
 
 Run `Source/BuildCasing.py ASSET_DIRECTORY FONT.ttf` with Pillow installed and the io_object_mu project’s `mu.py` on the Python module path to regenerate the casing assets.
 
+## Changes in v0.6.1
+
+- Rescaled the whole effect to Kerbin: the fireball is 2.4 km in radius (it now roughly matches the 2.2 km damage radius), the cloud tops out near 10 km with a cap about 25 km across, and the shock front and camera tremor reach 8.5 km.
+- The cloud height, early cloud size and cap proportions are constants at the top of `SundialDetonationEffect.cs`; the fireball and shock-front sizes are `fireballRadius` and `visualRadius` in the part config.
+
+## Changes in v0.6.0
+
+- Added a larger, flatter mushroom cloud with a cap about 2.5 times as wide as the cloud is tall.
+- The cloud is lit by the sun with cream highlights, blue-grey shadow, glowing orange patches, a bright underside and a dark reddish flared stem.
+- The fireball stays gold-orange with bright cream veins instead of cooling to deep red.
+- A white-out flash covers the screen for a camera close to the burst.
+- The cloud now uses 570 billows and the effect lasts 80 seconds (was 58). The new tuning constants are at the top of `SundialDetonationEffect.cs`.
+
 ## Changes in v0.5.7
 
 - The shock-front camera tremor now also triggers when the flight camera is directly above ground zero, where the crossing check previously never fired.
@@ -81,4 +92,4 @@ Run `Source/BuildCasing.py ASSET_DIRECTORY FONT.ttf` with Pillow installed and t
 
 ## GitHub Pages
 
-The project website lives in [docs](docs/). See [PUBLISHING.md](PUBLISHING.md) for setup.
+The [project website](https://notallyourway1.github.io/project-kundial/) hosts the source ZIP. See [PUBLISHING.md](PUBLISHING.md) to update the download.

@@ -5,11 +5,21 @@ namespace ProjectSundial
     public sealed class SundialDetonationEffect : MonoBehaviour
     {
         private const int FirePuffs = 14;
-        private const int ColumnPuffs = 80;
-        private const int CapPuffs = 184;
-        private const int CrownPuffs = 72;
+        private const int ColumnPuffs = 120;
+        private const int CapPuffs = 200;
+        private const int CrownPuffs = 110;
+        private const int UndersidePuffs = 110;
         private const int DustPuffs = 30;
-        private const float AtmosphereDuration = 58f;
+        private const float AtmosphereDuration = 80f;
+        private const float CloudFadeStart = 62f;
+        private const float CloudGrowthTime = 40f;
+        private const float CapRadiusRatio = 1.25f;
+
+        // Kerbin-scale cloud: the reference footage shows a cloud top near 100 km over Earth,
+        // and Kerbin is about a tenth of Earth's radius (600 km against 6371 km).
+        private const float KerbinCloudTop = 10000f;
+        private const float EarlyCloudTop = 2500f;
+        private const float EarlyCapRadius = 1200f;
         private const float FireballPeakTime = 5f;
         private const float CloudHandoffStart = 6f;
         private const float CloudHandoffEnd = 16f;
@@ -31,6 +41,7 @@ namespace ProjectSundial
         private float visualRadius;
         private float fireballRadius;
         private float cloudTopRise;
+        private float veilAlpha;
 
         private Light flash;
         private Transform fireballCore;
@@ -65,7 +76,7 @@ namespace ProjectSundial
             effect.visualRadius = Mathf.Max(100f, visualRadius);
             effect.fireballRadius = Mathf.Max(1f, fireballRadius);
             if (effect.inAtmosphere)
-                effect.cloudTopRise = (float)(0.52d * (body.atmosphereDepth - effect.altitude));
+                effect.cloudTopRise = (float)System.Math.Min(KerbinCloudTop, 0.9d * (body.atmosphereDepth - effect.altitude));
             effect.UpdateAnchor();
             effect.InitializeVisuals();
             effect.RenderFrame();
@@ -170,7 +181,11 @@ namespace ProjectSundial
                     float sz = ring * Mathf.Sin(theta);
                     float coarse = Mathf.PerlinNoise(5f + 3.9f * (sx + 0.4f * sy), 5f + 3.9f * sz);
                     float detail = Mathf.PerlinNoise(13f + 16f * sz, 13f + 16f * (sy + 0.3f * sx));
-                    fireballMottle[y * width + x] = Mathf.Clamp01(0.70f * coarse + 0.30f * detail);
+
+                    // Bright veins along the noise zero-crossings give the cellular, convecting surface.
+                    float vein = 1f - Mathf.Abs(2f * coarse - 1f);
+                    vein = vein * vein * vein;
+                    fireballMottle[y * width + x] = Mathf.Clamp01(0.45f * coarse + 0.20f * detail + 0.45f * vein);
                 }
             }
             texture.wrapMode = TextureWrapMode.Clamp;
@@ -193,8 +208,8 @@ namespace ProjectSundial
                 return;
             fireballColorStep = step;
 
-            Color edge = Color.Lerp(new Color(1f, 0.73f, 0.32f), new Color(0.83f, 0.23f, 0.055f), cooling);
-            Color hottest = Color.Lerp(new Color(1f, 0.99f, 0.94f), new Color(1f, 0.66f, 0.22f), cooling);
+            Color edge = Color.Lerp(new Color(1f, 0.78f, 0.40f), new Color(0.93f, 0.50f, 0.16f), cooling);
+            Color hottest = Color.Lerp(new Color(1f, 0.99f, 0.93f), new Color(1f, 0.88f, 0.55f), cooling);
             if (fireballTexture == null)
             {
                 if (fireballMaterial.HasProperty("_Color"))
@@ -265,19 +280,19 @@ namespace ProjectSundial
         {
             public float Top;
             public float Radius;
-            public float Depth => Radius * 0.55f;
+            public float Depth;
             public float CenterHeight => Top - Depth * 0.5f;
         }
 
         private CloudCap GetCloudCap()
         {
-            float growth = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((age - 7f) / 30f));
-            float top = Mathf.Lerp(Mathf.Min(12000f, cloudTopRise), cloudTopRise, growth);
-            return new CloudCap
-            {
-                Top = top,
-                Radius = Mathf.Min(Mathf.Lerp(5800f, 14000f, growth), top * 0.44f)
-            };
+            float growth = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((age - 7f) / CloudGrowthTime));
+            float top = Mathf.Lerp(Mathf.Min(EarlyCloudTop, cloudTopRise), cloudTopRise, growth);
+
+            // A broad, flat mushroom: the cap ends up wider than the cloud is tall.
+            float radius = Mathf.Min(Mathf.Lerp(EarlyCapRadius, cloudTopRise * CapRadiusRatio, growth), top * CapRadiusRatio);
+            float depth = Mathf.Min(radius * 0.55f, top * 0.5f);
+            return new CloudCap { Top = top, Radius = radius, Depth = depth };
         }
 
         private float FireballVisualRadius()
@@ -302,7 +317,9 @@ namespace ProjectSundial
 
         private void InitializeCloud()
         {
-            int capacity = inAtmosphere ? FirePuffs + ColumnPuffs + CapPuffs + CrownPuffs + DustPuffs : FirePuffs;
+            int capacity = inAtmosphere
+                ? FirePuffs + ColumnPuffs + CapPuffs + CrownPuffs + UndersidePuffs + DustPuffs
+                : FirePuffs;
             if (inAtmosphere)
                 cloud = new SundialCloudMesh(transform, cloudMaterial, capacity - FirePuffs);
             distribution = new Vector4[capacity];
@@ -370,23 +387,66 @@ namespace ProjectSundial
             flash.enabled = glare > 0f;
 
             RenderFireballCore();
-            if (glow == null)
-                return;
 
             var flightCamera = FlightCamera.fetch;
             Camera camera = flightCamera != null ? flightCamera.mainCamera : Camera.main;
             Vector3 eye = camera != null ? transform.InverseTransformPoint(camera.transform.position) : Vector3.back * visualRadius;
+            var manager = CameraManager.Instance;
+            bool flightView = camera != null && manager != null && manager.currentCameraMode == CameraManager.CameraMode.Flight;
+            UpdateFlashVeil(eye, flightView);
+
+            if (glow == null)
+                return;
 
             Vector3 right = camera != null ? transform.InverseTransformDirection(camera.transform.right) : Vector3.right;
             Vector3 up = camera != null ? transform.InverseTransformDirection(camera.transform.up) : Vector3.up;
             glow.Draw(RenderFireball(), eye, right, up);
             if (inAtmosphere)
             {
-                cloud.Draw(RenderAtmosphericCloud(0), eye);
-                var manager = CameraManager.Instance;
-                bool flightView = camera != null && manager != null && manager.currentCameraMode == CameraManager.CameraMode.Flight;
+                cloud.Draw(RenderAtmosphericCloud(0), eye, LocalSunDirection());
                 shockFront.Draw(age, eye, flightView);
             }
+        }
+
+        private Vector3 LocalSunDirection()
+        {
+            Vector3 fallback = new Vector3(0.6f, 0.65f, 0.3f).normalized;
+            if (FlightGlobals.Bodies == null || FlightGlobals.Bodies.Count == 0 || FlightGlobals.Bodies[0] == null)
+                return fallback;
+
+            Vector3d toSun = FlightGlobals.Bodies[0].position - (Vector3d)transform.position;
+            if (toSun.sqrMagnitude < 1d)
+                return fallback;
+
+            return transform.InverseTransformDirection((Vector3)toSun.normalized).normalized;
+        }
+
+        // The opening flash washes out the screen for a viewer close to the burst.
+        private void UpdateFlashVeil(Vector3 eye, bool flightView)
+        {
+            if (!flightView)
+            {
+                veilAlpha = 0f;
+                return;
+            }
+
+            float reach = Mathf.Max(1000f, fireballRadius * 1.5f);
+            float proximity = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(eye.magnitude / reach));
+            float pulse = Mathf.Clamp01(age / 0.08f)
+                * (1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((age - 0.15f) / 1.6f)));
+            veilAlpha = 0.9f * proximity * pulse;
+        }
+
+        private void OnGUI()
+        {
+            if (veilAlpha <= 0.01f || Event.current.type != EventType.Repaint)
+                return;
+
+            Color previous = GUI.color;
+            GUI.depth = -1000;
+            GUI.color = new Color(1f, 0.97f, 0.88f, veilAlpha);
+            GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), Texture2D.whiteTexture);
+            GUI.color = previous;
         }
 
         private int RenderFireball()
@@ -414,11 +474,11 @@ namespace ProjectSundial
             }
 
             // The halo gathers into the same volume as the growing smoke cap.
-            var outerGlow = Color.Lerp(new Color(1f, 0.92f, 0.69f), new Color(0.82f, 0.30f, 0.14f), heat);
+            var outerGlow = Color.Lerp(new Color(1f, 0.92f, 0.69f), new Color(0.95f, 0.60f, 0.28f), heat);
             outerGlow.a = fade * 0.92f;
             glow.SetFlare(0, center, 2f * Mathf.Sqrt(horizontal * vertical), outerGlow, 0f);
 
-            Color color = Color.Lerp(new Color(1f, 0.99f, 0.91f), new Color(0.70f, 0.29f, 0.13f), heat);
+            Color color = Color.Lerp(new Color(1f, 0.99f, 0.91f), new Color(0.95f, 0.66f, 0.34f), heat);
             color.a = fade;
             for (int i = 1; i < FirePuffs; i++)
             {
@@ -440,7 +500,7 @@ namespace ProjectSundial
         private int RenderAtmosphericCloud(int count)
         {
             float density = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((age - 8f) / 10f))
-                * (1f - Mathf.Clamp01((age - 44f) / (AtmosphereDuration - 44f)));
+                * (1f - Mathf.Clamp01((age - CloudFadeStart) / (AtmosphereDuration - CloudFadeStart)));
             if (density <= 0f)
                 return count;
 
@@ -451,92 +511,114 @@ namespace ProjectSundial
             float capBase = top - capDepth;
             float flowTime = Mathf.Max(0f, age - 5f);
             float dustDensity = density * (1f - Mathf.Clamp01((age - 20f) / 20f));
-            float outwardSpread = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((age - CloudHandoffEnd) / 21f));
-            Color columnShadow = new Color(0.26f, 0.19f, 0.16f);
-            Color columnLight = new Color(0.60f, 0.46f, 0.36f);
-            Color capShadow = new Color(0.33f, 0.36f, 0.42f);
-            Color capLight = new Color(0.93f, 0.89f, 0.79f);
-            var undersideColor = new Color(0.90f, 0.65f, 0.35f);
-            float ember = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((age - 8f) / 13f));
-            var emberLight = new Color(0.95f, 0.52f, 0.27f);
+            float outwardSpread = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((age - CloudHandoffEnd) / (CloudGrowthTime * 0.7f)));
+            float emberFade = Mathf.Lerp(1f, 0.55f, Mathf.Clamp01((age - 10f) / 50f));
+            var stemAlbedo = new Color(0.62f, 0.40f, 0.30f);
+            var stemTop = new Color(0.80f, 0.62f, 0.50f);
+            var capAlbedo = new Color(1.00f, 0.98f, 0.94f);
+            var undersideAlbedo = new Color(1.00f, 0.86f, 0.68f);
 
+            // Dark reddish stem with a flared foot and a collar where it meets the cap.
             for (int i = 0; i < ColumnPuffs; i++)
             {
                 Vector4 puff = distribution[FirePuffs + i];
-                float level = Mathf.Repeat((i + 0.5f) / ColumnPuffs + flowTime * (0.027f + 0.012f * puff.w), 1f);
-                float angle = Mathf.Atan2(puff.z, puff.x) + level * 2.2f + flowTime * 0.12f;
-                float baseFlare = (1f - level) * (1f - level);
-                float shoulderFlare = level * level * level;
-                float flare = 0.24f + 0.22f * baseFlare + 0.14f * shoulderFlare;
-                float spread = capRadius * flare * (0.35f + 0.65f * puff.w);
-                float shear = capRadius * 0.10f * level * (Mathf.Sin(level * 8f - flowTime * 0.30f) + 1f);
-                var position = new Vector3(Mathf.Cos(angle) * spread + shear, capBase * level, Mathf.Sin(angle) * spread);
-                float blend = Mathf.Clamp01(0.25f + level * 0.42f + Mathf.Cos(angle) * 0.23f);
-                Color color = Color.Lerp(columnShadow, columnLight, blend);
-                color.a = density * (0.60f + 0.26f * Mathf.Sin(level * Mathf.PI));
-                float size = capRadius * (0.28f + 0.18f * puff.y + 0.10f * baseFlare + 0.08f * shoulderFlare);
-                WritePuff(count++, position, size, color, puff.w * 360f + flowTime * 8f);
+                float level = Mathf.Repeat((i + 0.5f) / ColumnPuffs + flowTime * (0.020f + 0.010f * puff.w), 1f);
+                float angle = Mathf.Atan2(puff.z, puff.x) + level * 1.6f + flowTime * 0.10f;
+                float foot = (1f - level) * (1f - level);
+                foot *= foot;
+                float collar = level * level * level;
+                collar *= collar;
+                float profile = 0.15f + 0.15f * foot + 0.07f * collar;
+                float spread = capRadius * profile * Mathf.Sqrt(puff.w);
+                float shear = capRadius * 0.03f * level * (Mathf.Sin(level * 8f - flowTime * 0.30f) + 1f);
+                var position = new Vector3(Mathf.Cos(angle) * spread + shear,
+                    (capBase + capDepth * 0.12f) * level, Mathf.Sin(angle) * spread);
+                Color color = Color.Lerp(stemAlbedo, stemTop, level * 0.4f);
+                color.a = density * (0.80f + 0.15f * Mathf.Sin(level * Mathf.PI));
+                float size = capRadius * (0.17f + 0.11f * puff.y + 0.08f * foot);
+                WritePuff(count++, position, size, color, puff.w * 360f + flowTime * 8f,
+                    emberFade * (0.30f + 0.55f * puff.y), 0f);
             }
 
-            // Inner smoke rises and rolls down around the outside of the cap.
+            // Rolling rim: a thick torus of cream billows with glowing hot patches between them.
             for (int i = 0; i < CapPuffs; i++)
             {
                 Vector4 puff = distribution[FirePuffs + ColumnPuffs + i];
-                float azimuth = Mathf.Atan2(puff.z, puff.x) + flowTime * (0.024f + 0.022f * puff.y);
-                float roll = puff.y * 2f * Mathf.PI - flowTime * (0.30f + 0.10f * puff.w);
-                float lobe = 0.90f + 0.10f * Mathf.Sin(azimuth * 5f + flowTime * 0.15f);
-                float rollHeight = Mathf.Sin(roll);
-                float ringFraction = 0.48f + (0.19f + 0.20f * puff.w) * Mathf.Cos(roll);
-                float rim = Mathf.Clamp01(ringFraction / 0.87f);
-                float ring = capRadius * lobe * ringFraction * (1f + 0.95f * outwardSpread * rim);
-                float droop = 0.14f * outwardSpread * rim * rim;
-                float height = capBase + capDepth * (0.50f + 0.39f * rollHeight - droop);
-                float size = capDepth * (0.29f + 0.43f * puff.w) * (1f + 0.12f * outwardSpread);
+                float azimuth = Mathf.Atan2(puff.z, puff.x) + flowTime * (0.020f + 0.020f * puff.y);
+                float roll = puff.y * 2f * Mathf.PI - flowTime * (0.22f + 0.08f * puff.w);
+                float lobe = 0.92f + 0.08f * Mathf.Sin(azimuth * 5f + flowTime * 0.15f);
+                float cosRoll = Mathf.Cos(roll);
+                float sinRoll = Mathf.Sin(roll);
+                float tube = 0.55f + 0.45f * puff.w;
+                float ringFraction = 0.70f + 0.28f * cosRoll * tube;
+                float rim = Mathf.Clamp01((ringFraction - 0.42f) / 0.56f);
+                float ring = capRadius * lobe * ringFraction;
+                float droop = 0.12f * outwardSpread * rim * rim;
+                float size = capDepth * (0.24f + 0.30f * puff.w);
+                float height = capBase + capDepth * (0.50f + 0.40f * sinRoll * (0.60f + 0.40f * puff.w) - droop);
                 height = Mathf.Min(height, top - size * 0.5f);
                 var position = new Vector3(Mathf.Cos(azimuth) * ring, height, Mathf.Sin(azimuth) * ring);
-                float light = Mathf.Clamp01(0.49f + rollHeight * 0.33f + Mathf.Cos(azimuth) * 0.18f);
-                Color color = Color.Lerp(capShadow, capLight, light);
-                float underlighting = Mathf.Clamp01(-rollHeight) * (0.56f + 0.22f * puff.w);
-                color = Color.Lerp(color, undersideColor, underlighting);
-                color = Color.Lerp(color, emberLight, ember * (0.68f - 0.28f * light));
-                color.a = density * (0.50f + 0.32f * puff.w);
-                WritePuff(count++, position, size, color, puff.w * 360f + flowTime * 15f);
+                Color color = capAlbedo;
+                color.a = density * (0.82f + 0.15f * puff.w);
+                float hot = Mathf.SmoothStep(0.55f, 0.95f, Mathf.Repeat(puff.w * 37.1f + puff.y * 11.7f, 1f));
+                WritePuff(count++, position, size, color, puff.w * 360f + flowTime * 15f,
+                    emberFade * (0.08f + 0.75f * hot), Mathf.Clamp01(-sinRoll) * 0.75f);
             }
 
-            // Fill the space above the rolling rim with a rounded, shaded crown.
+            // Flat-topped crown over the rim.
             float crownDensity = density * Mathf.Clamp01((age - 10f) / 9f);
-            float crownRadius = capRadius * (0.64f + 0.69f * outwardSpread);
+            float crownRadius = capRadius * (0.62f + 0.22f * outwardSpread);
             for (int i = 0; i < CrownPuffs && crownDensity > 0f; i++)
             {
                 Vector4 puff = distribution[FirePuffs + ColumnPuffs + CapPuffs + i];
                 float fraction = Mathf.Sqrt(puff.w);
-                float angle = Mathf.Atan2(puff.z, puff.x) + flowTime * 0.025f;
+                float angle = Mathf.Atan2(puff.z, puff.x) + flowTime * 0.020f;
                 float spread = crownRadius * fraction;
-                float size = capDepth * (0.42f + 0.40f * puff.y);
-                float height = top - size * 0.5f - capDepth * (0.38f * fraction * fraction + 0.09f * (1f - puff.y));
+                float size = capDepth * (0.30f + 0.32f * puff.y);
+                float height = top - size * 0.5f - capDepth * (0.24f * fraction * fraction + 0.06f * (1f - puff.y));
                 var position = new Vector3(Mathf.Cos(angle) * spread, height, Mathf.Sin(angle) * spread);
-                float light = Mathf.Clamp01(0.38f + 0.34f * puff.y + 0.28f * Mathf.Cos(angle));
-                Color color = Color.Lerp(capShadow, capLight, light);
-                color.a = crownDensity * (0.48f + 0.22f * puff.y);
-                WritePuff(count++, position, size, color, puff.y * 360f + flowTime * 6f);
+                Color color = capAlbedo;
+                color.a = crownDensity * (0.80f + 0.15f * puff.y);
+                float hot = Mathf.SmoothStep(0.60f, 0.95f, Mathf.Repeat(puff.y * 29.3f + puff.w * 7.9f, 1f));
+                WritePuff(count++, position, size, color, puff.y * 360f + flowTime * 6f,
+                    emberFade * 0.60f * hot, 0f);
+            }
+
+            // Bright, warm-lit underside of the cap.
+            float underDensity = density * Mathf.Clamp01((age - 14f) / 10f);
+            for (int i = 0; i < UndersidePuffs && underDensity > 0f; i++)
+            {
+                Vector4 puff = distribution[FirePuffs + ColumnPuffs + CapPuffs + CrownPuffs + i];
+                float fraction = Mathf.Sqrt(puff.w);
+                float angle = Mathf.Atan2(puff.z, puff.x) + flowTime * 0.030f;
+                float spread = capRadius * (0.14f + 0.78f * fraction);
+                float size = capDepth * (0.20f + 0.22f * puff.y);
+                float height = capBase + capDepth * (0.10f + 0.10f * puff.y - 0.05f * fraction
+                    + 0.04f * Mathf.Sin(angle * 7f + flowTime * 0.20f));
+                var position = new Vector3(Mathf.Cos(angle) * spread, height, Mathf.Sin(angle) * spread);
+                Color color = undersideAlbedo;
+                color.a = underDensity * (0.80f + 0.15f * puff.w);
+                WritePuff(count++, position, size, color, puff.y * 360f + flowTime * 9f,
+                    emberFade * (0.35f + 0.25f * puff.w), 0.90f);
             }
 
             for (int i = 0; i < DustPuffs && dustDensity > 0f; i++)
             {
-                Vector4 puff = distribution[FirePuffs + ColumnPuffs + CapPuffs + CrownPuffs + i];
-                float spread = capRadius * (0.30f + 0.64f * puff.w);
-                float height = capRadius * (0.045f + 0.10f * puff.y);
+                Vector4 puff = distribution[FirePuffs + ColumnPuffs + CapPuffs + CrownPuffs + UndersidePuffs + i];
+                float spread = capRadius * (0.12f + 0.30f * puff.w);
+                float height = capRadius * (0.010f + 0.030f * puff.y);
                 var position = new Vector3(puff.x * spread, height, puff.z * spread);
-                var color = new Color(0.46f, 0.38f, 0.31f, dustDensity * (0.24f + 0.30f * puff.w));
-                WritePuff(count++, position, capRadius * (0.17f + 0.21f * puff.y), color, puff.y * 360f);
+                var color = new Color(0.52f, 0.42f, 0.34f, dustDensity * (0.35f + 0.30f * puff.w));
+                WritePuff(count++, position, capRadius * (0.07f + 0.08f * puff.y), color, puff.y * 360f, 0f, 0f);
             }
 
             return count;
         }
 
-        private void WritePuff(int index, Vector3 position, float size, Color color, float rotation)
+        private void WritePuff(int index, Vector3 position, float size, Color color, float rotation,
+            float glow, float underlight)
         {
-            cloud.SetBillow(index, position, size, color, rotation);
+            cloud.SetBillow(index, position, size, color, rotation, glow, underlight);
         }
 
         private void OnDestroy()

@@ -16,7 +16,13 @@ namespace ProjectSundial
             public float Diameter;
             public Color Color;
             public float Rotation;
+            public float Glow;
+            public float Underlight;
         }
+
+        private static readonly Color ShadowTone = new Color(0.40f, 0.42f, 0.55f);
+        private static readonly Color LitTone = new Color(1.00f, 0.95f, 0.84f);
+        private static readonly Color EmberTone = new Color(1.00f, 0.45f, 0.14f);
 
         private readonly Billow[] billows;
         private readonly float[] depths;
@@ -55,12 +61,17 @@ namespace ProjectSundial
             triangles = new List<int>(capacity * faces.Count);
         }
 
-        internal void SetBillow(int index, Vector3 position, float diameter, Color color, float rotation)
+        internal void SetBillow(int index, Vector3 position, float diameter, Color color, float rotation,
+            float glow = 0f, float underlight = 0f)
         {
-            billows[index] = new Billow { Center = position, Diameter = diameter, Color = color, Rotation = rotation };
+            billows[index] = new Billow
+            {
+                Center = position, Diameter = diameter, Color = color, Rotation = rotation,
+                Glow = glow, Underlight = underlight
+            };
         }
 
-        internal void Draw(int count, Vector3 viewer)
+        internal void Draw(int count, Vector3 viewer, Vector3 sun)
         {
             renderer.enabled = count > 0;
             if (count == 0)
@@ -79,7 +90,7 @@ namespace ProjectSundial
             colors.Clear();
             triangles.Clear();
             for (int i = 0; i < count; i++)
-                AppendBillow(billows[order[i]], viewer);
+                AppendBillow(billows[order[i]], viewer, sun);
 
             mesh.Clear();
             mesh.SetVertices(vertices);
@@ -88,7 +99,7 @@ namespace ProjectSundial
             mesh.SetTriangles(triangles, 0, true);
         }
 
-        private void AppendBillow(Billow billow, Vector3 viewer)
+        private void AppendBillow(Billow billow, Vector3 viewer, Vector3 sun)
         {
             int first = vertices.Count;
             float radius = billow.Diameter * 0.5f;
@@ -96,17 +107,26 @@ namespace ProjectSundial
             Vector3 view = (viewer - billow.Center).normalized;
             for (int i = 0; i < shape.Count; i++)
             {
-                Vector3 sample = shape[i];
-                Vector3 direction = rotation * sample;
+                Vector3 direction = rotation * shape[i];
                 float ripple = shapeRipples[i];
                 vertices.Add(billow.Center + direction * radius * ripple);
                 uvs.Add(shapeUv[i]);
 
                 float facing = Mathf.Clamp01(Vector3.Dot(direction, view));
-                float light = Mathf.Clamp01(0.81f + direction.y * 0.13f - direction.x * 0.07f + (ripple - 1f) * 0.37f);
-                Color tone = billow.Color;
-                colors.Add(new Color(tone.r * light, tone.g * light, tone.b * light,
-                    tone.a * Mathf.SmoothStep(0f, 1f, facing)));
+
+                // Sunlit cream on the sun side, cool blue-grey in shade, lumpy relief from the ripple.
+                float diffuse = Mathf.Clamp01(Vector3.Dot(direction, sun) * 0.5f + 0.5f);
+                float lit = Mathf.Clamp01(diffuse * Mathf.Sqrt(diffuse) + (ripple - 1f) * 1.6f);
+                if (billow.Underlight > 0f)
+                    lit = Mathf.Max(lit, billow.Underlight * Mathf.Clamp01(0.35f - direction.y));
+
+                Color shade = Color.Lerp(ShadowTone, LitTone, lit);
+                float ember = billow.Glow * (1f - 0.65f * lit);
+                float red = Mathf.Clamp01(billow.Color.r * shade.r + EmberTone.r * ember);
+                float green = Mathf.Clamp01(billow.Color.g * shade.g + EmberTone.g * ember);
+                float blue = Mathf.Clamp01(billow.Color.b * shade.b + EmberTone.b * ember);
+                colors.Add(new Color(red, green, blue,
+                    billow.Color.a * Mathf.SmoothStep(0f, 1f, facing)));
             }
             for (int i = 0; i < faces.Count; i++)
                 triangles.Add(first + faces[i]);
@@ -135,8 +155,8 @@ namespace ProjectSundial
             shapeUv.Add(new Vector2(0.5f, 0f));
 
             foreach (Vector3 sample in shape)
-                shapeRipples.Add(1f + 0.10f * Mathf.Sin(8f * sample.x + 4f * sample.y)
-                    + 0.07f * Mathf.Cos(8f * sample.z - 5f * sample.y));
+                shapeRipples.Add(1f + 0.15f * Mathf.Sin(8f * sample.x + 4f * sample.y)
+                    + 0.10f * Mathf.Cos(8f * sample.z - 5f * sample.y));
 
             for (int side = 0; side < Sides; side++)
             {

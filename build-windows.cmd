@@ -19,7 +19,7 @@ if "%compiler%"=="csc.exe" (
     )
 )
 
-for %%A in (mscorlib System Assembly-CSharp UnityEngine.CoreModule UnityEngine.PhysicsModule) do (
+for %%A in (mscorlib System Assembly-CSharp UnityEngine.CoreModule UnityEngine.IMGUIModule UnityEngine.PhysicsModule) do (
     if not exist "%managed%\%%A.dll" (
         echo Missing %%A.dll in "%managed%". 1>&2
         exit /b 1
@@ -36,6 +36,7 @@ if not exist "%plugins%\" (
     "/reference:%managed%\System.dll" ^
     "/reference:%managed%\Assembly-CSharp.dll" ^
     "/reference:%managed%\UnityEngine.CoreModule.dll" ^
+    "/reference:%managed%\UnityEngine.IMGUIModule.dll" ^
     "/reference:%managed%\UnityEngine.PhysicsModule.dll" ^
     "/out:%plugins%\ProjectSundial.dll" "%project%Source\*.cs"
 if errorlevel 1 exit /b 1
