@@ -1,6 +1,6 @@
-# Project Kundial v0.6.2
+# Project Kundial v0.2
 
-Project Sundial Payload is a standalone part for Kerbal Space Program 1.12.x.
+Project Sundial Payload is a standalone part for Kerbal Space Program 1.12.x. The v0.2 release contains the v0.6.2 plugin. The source and changelog use the plugin version.
 
 ## Historical background
 
@@ -10,7 +10,7 @@ The ribbed casing is a fictional depiction for KSP. The part's dimensions, mass,
 
 ## Install or upgrade
 
-1. Quit KSP and extract the [ready-to-install ZIP](https://notallyourway1.github.io/project-kundial/downloads/project-kundial-v0.6.2-install.zip). It includes the compiled plugin. If you downloaded the source ZIP, [build the plugin](#building) first.
+1. Quit KSP and extract the [ready-to-install ZIP](https://notallyourway1.github.io/project-kundial/downloads/project-kundial-v0.2.zip). It includes the compiled plugin. If you downloaded the source ZIP, [build the plugin](#building) first.
 2. Open the KSP folder that contains your existing `GameData` folder.
 3. Copy the archive's `GameData/ProjectSundial` folder into your existing `GameData`. If your file manager asks, replace the old `ProjectSundial` folder. The DLL should be at `GameData/ProjectSundial/Plugins/ProjectSundial.dll`.
 4. Start KSP and find **Project Sundial Payload** under **Utility** or search for **Sundial**. Career and Science modes unlock it with Heavy Rocketry. The v0.1 part identifier is retained for existing craft and saves.
