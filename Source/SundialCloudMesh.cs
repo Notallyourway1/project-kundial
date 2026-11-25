@@ -31,10 +31,12 @@ namespace ProjectSundial
         private readonly List<float> shapeRipples = new List<float>();
         private readonly List<Vector2> shapeUv = new List<Vector2>();
         private readonly List<int> faces = new List<int>();
-        private readonly List<Vector3> vertices;
-        private readonly List<Vector2> uvs;
-        private readonly List<Color32> colors;
-        private readonly List<int> triangles;
+        private readonly Vector3[] vertices;
+        private readonly Vector2[] uvs;
+        private readonly Color32[] colors;
+        private readonly int[] triangles;
+        private int vertexCount;
+        private int drawnBillows = -1;
         private readonly Mesh mesh;
         private readonly MeshRenderer renderer;
 
@@ -55,10 +57,20 @@ namespace ProjectSundial
             billows = new Billow[capacity];
             depths = new float[capacity];
             order = new int[capacity];
-            vertices = new List<Vector3>(capacity * shape.Count);
-            uvs = new List<Vector2>(capacity * shape.Count);
-            colors = new List<Color32>(capacity * shape.Count);
-            triangles = new List<int>(capacity * faces.Count);
+            vertices = new Vector3[capacity * shape.Count];
+            uvs = new Vector2[capacity * shape.Count];
+            colors = new Color32[capacity * shape.Count];
+
+            // Triangle and UV layout depend only on the slot, never on which billow fills it.
+            triangles = new int[capacity * faces.Count];
+            for (int slot = 0; slot < capacity; slot++)
+            {
+                int first = slot * shape.Count;
+                for (int i = 0; i < faces.Count; i++)
+                    triangles[slot * faces.Count + i] = first + faces[i];
+                for (int i = 0; i < shape.Count; i++)
+                    uvs[first + i] = shapeUv[i];
+            }
         }
 
         internal void SetBillow(int index, Vector3 position, float diameter, Color color, float rotation,
@@ -85,23 +97,29 @@ namespace ProjectSundial
             }
             Array.Sort(depths, order, 0, count);
 
-            vertices.Clear();
-            uvs.Clear();
-            colors.Clear();
-            triangles.Clear();
             for (int i = 0; i < count; i++)
-                AppendBillow(billows[order[i]], viewer, sun);
+                AppendBillow(i, billows[order[i]], viewer, sun);
 
-            mesh.Clear();
-            mesh.SetVertices(vertices);
-            mesh.SetUVs(0, uvs);
-            mesh.SetColors(colors);
-            mesh.SetTriangles(triangles, 0, true);
+            if (count != drawnBillows)
+            {
+                mesh.Clear();
+                drawnBillows = count;
+                vertexCount = count * shape.Count;
+                mesh.SetVertices(vertices, 0, vertexCount);
+                mesh.SetUVs(0, uvs, 0, vertexCount);
+                mesh.SetColors(colors, 0, vertexCount);
+                mesh.SetTriangles(triangles, 0, count * faces.Count, 0, true);
+                return;
+            }
+
+            mesh.SetVertices(vertices, 0, vertexCount);
+            mesh.SetColors(colors, 0, vertexCount);
+            mesh.RecalculateBounds();
         }
 
-        private void AppendBillow(Billow billow, Vector3 viewer, Vector3 sun)
+        private void AppendBillow(int slot, Billow billow, Vector3 viewer, Vector3 sun)
         {
-            int first = vertices.Count;
+            int first = slot * shape.Count;
             float radius = billow.Diameter * 0.5f;
             Quaternion rotation = Quaternion.Euler(billow.Rotation * 0.29f, billow.Rotation, 0f);
             Vector3 view = (viewer - billow.Center).normalized;
@@ -109,8 +127,7 @@ namespace ProjectSundial
             {
                 Vector3 direction = rotation * shape[i];
                 float ripple = shapeRipples[i];
-                vertices.Add(billow.Center + direction * radius * ripple);
-                uvs.Add(shapeUv[i]);
+                vertices[first + i] = billow.Center + direction * radius * ripple;
 
                 float facing = Mathf.Clamp01(Vector3.Dot(direction, view));
 
@@ -125,11 +142,9 @@ namespace ProjectSundial
                 float red = Mathf.Clamp01(billow.Color.r * shade.r + EmberTone.r * ember);
                 float green = Mathf.Clamp01(billow.Color.g * shade.g + EmberTone.g * ember);
                 float blue = Mathf.Clamp01(billow.Color.b * shade.b + EmberTone.b * ember);
-                colors.Add(new Color(red, green, blue,
-                    billow.Color.a * Mathf.SmoothStep(0f, 1f, facing)));
+                colors[first + i] = new Color(red, green, blue,
+                    billow.Color.a * Mathf.SmoothStep(0f, 1f, facing));
             }
-            for (int i = 0; i < faces.Count; i++)
-                triangles.Add(first + faces[i]);
         }
 
         private void BuildShape()

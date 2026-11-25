@@ -6,14 +6,16 @@ namespace ProjectSundial
 {
     internal sealed class SundialShockShake : MonoBehaviour
     {
-        private const float Duration = 1.05f;
-        private const float PeakAngle = 1.6f;
+        private const float DefaultDuration = 1.05f;
+        private const float DefaultPeakAngle = 1.6f;
         private static SundialShockShake active;
         private readonly Dictionary<Camera, Quaternion> rotations = new Dictionary<Camera, Quaternion>();
         private float start;
         private float strength;
+        private float duration = DefaultDuration;
+        private float peakAngle = DefaultPeakAngle;
 
-        internal static void Play(float strength)
+        internal static void Play(float strength, float duration = DefaultDuration, float peakAngle = DefaultPeakAngle)
         {
             if (strength <= 0f || active != null)
                 return;
@@ -22,6 +24,8 @@ namespace ProjectSundial
             active = node.AddComponent<SundialShockShake>();
             active.start = Time.unscaledTime;
             active.strength = Mathf.Clamp01(strength);
+            active.duration = Mathf.Max(0.1f, duration);
+            active.peakAngle = peakAngle;
         }
 
         private void OnEnable()
@@ -32,7 +36,7 @@ namespace ProjectSundial
 
         private void Update()
         {
-            if (Time.unscaledTime - start >= Duration)
+            if (Time.unscaledTime - start >= duration)
                 Destroy(gameObject);
         }
 
@@ -48,8 +52,8 @@ namespace ProjectSundial
                 return;
 
             float time = Time.unscaledTime - start;
-            float fade = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(time / Duration));
-            float amount = PeakAngle * strength * fade * Mathf.Clamp01(time / 0.045f);
+            float fade = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(time / duration));
+            float amount = peakAngle * strength * fade * Mathf.Clamp01(time / 0.045f);
             if (amount <= 0f)
                 return;
 

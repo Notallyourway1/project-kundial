@@ -15,6 +15,12 @@ namespace ProjectSundial
         private const float CloudGrowthTime = 40f;
         private const float CapRadiusRatio = 1.25f;
 
+        // The ground shock front travels this many times the blast radius before it fades.
+        private const float ShockRangeScale = 1.7f;
+
+        // The vacuum burst was tuned when visualRadius was 8500 m; keep that size now that it is larger.
+        private const float VacuumSizeScale = 8500f / 12000f;
+
         // Cloud height above the burst in stock Kerbin conditions.
         private const float KerbinCloudTop = 11000f;
         private const float EarlyCloudTop = 2800f;
@@ -22,7 +28,23 @@ namespace ProjectSundial
         private const float FireballPeakTime = 5f;
         private const float CloudHandoffStart = 6f;
         private const float CloudHandoffEnd = 16f;
-        private const float VacuumDuration = 5f;
+
+        // Detonation above the atmosphere: no fireball dome or mushroom cloud. A white flash, two
+        // expanding shock rings, streaks of hot debris and a few thin wisps instead.
+        private const float VacuumDuration = 30f;
+        private const int VacuumStreaks = 56;
+        private const int VacuumWisps = 14;
+        private const int VacuumParticles = VacuumStreaks + VacuumWisps;
+        private const int BurstQuadCapacity = VacuumParticles + 6;
+        private const float VacuumRingTime = 12f;
+        private const float VacuumSecondRingTime = 14f;
+
+        private static readonly string[] AdditiveShaderNames =
+        {
+            "Legacy Shaders/Particles/Additive",
+            "KSP/Particles/Additive",
+            "Mobile/Particles/Additive"
+        };
 
         private static readonly string[] ShaderNames =
         {
@@ -51,6 +73,7 @@ namespace ProjectSundial
         private Vector3[] fireballVertices;
         private float[] fireballMottle;
         private Color32[] fireballPixels;
+        private readonly Color32[] fireballGradient = new Color32[256];
         private int fireballColorStep = -1;
         private SundialCloudMesh cloud;
         private SundialFireballGlow glow;
@@ -59,11 +82,22 @@ namespace ProjectSundial
         private Vector4[] distribution;
         private SundialShockFront shockFront;
         private Material cloudMaterial;
+        private SundialBurstQuads burst;
+        private Material burstMaterial;
+        private Texture2D burstTexture;
+        private float groundDrop;
+        private bool lightsAtmosphere;
+        private bool shaken;
 
-        internal static void Spawn(Vector3 center, CelestialBody body, float visualRadius, float fireballRadius)
+        internal static bool IsVacuum(CelestialBody body, double altitude)
+        {
+            return body == null || !body.atmosphere || altitude >= body.atmosphereDepth;
+        }
+
+        internal static SundialDetonationEffect Spawn(Vector3 center, CelestialBody body, float visualRadius, float fireballRadius)
         {
             if (body == null)
-                return;
+                return null;
 
             var root = new GameObject("Project Sundial detonation");
             var effect = root.AddComponent<SundialDetonationEffect>();
@@ -71,14 +105,22 @@ namespace ProjectSundial
             effect.latitude = body.GetLatitude(center);
             effect.longitude = body.GetLongitude(center);
             effect.altitude = body.GetAltitude(center);
-            effect.inAtmosphere = body.atmosphere && effect.altitude < body.atmosphereDepth;
+            effect.inAtmosphere = !IsVacuum(body, effect.altitude);
             effect.visualRadius = Mathf.Max(100f, visualRadius);
             effect.fireballRadius = Mathf.Max(1f, fireballRadius);
             if (effect.inAtmosphere)
                 effect.cloudTopRise = (float)System.Math.Min(KerbinCloudTop, 0.9d * (body.atmosphereDepth - effect.altitude));
+            else if (body.atmosphere && effect.altitude < 4d * body.atmosphereDepth)
+            {
+                // The flash lights the air and ground below the burst: remember how far down that is.
+                double ground = System.Math.Max(0d, body.TerrainAltitude(effect.latitude, effect.longitude, false));
+                effect.groundDrop = (float)System.Math.Max(0d, effect.altitude - ground);
+                effect.lightsAtmosphere = effect.groundDrop > 0f;
+            }
             effect.UpdateAnchor();
             effect.InitializeVisuals();
             effect.RenderFrame();
+            return effect;
         }
 
         private void UpdateAnchor()
@@ -106,14 +148,23 @@ namespace ProjectSundial
                 return;
             }
 
+            if (!inAtmosphere)
+            {
+                // Additive blending makes the flash, rings and streaks glow; fall back to plain alpha.
+                Shader additive = FindShader(AdditiveShaderNames) ?? shader;
+                burstTexture = SundialBurstQuads.CreateAtlas();
+                burstMaterial = new Material(additive) { mainTexture = burstTexture };
+                burst = new SundialBurstQuads(transform, burstMaterial, BurstQuadCapacity);
+                InitializeDistribution(VacuumParticles);
+                return;
+            }
+
             cloudMaterial = new Material(shader) { mainTexture = Texture2D.whiteTexture };
             glowTexture = CreateGlowTexture();
             glowMaterial = new Material(shader) { mainTexture = glowTexture };
             glow = new SundialFireballGlow(transform, glowMaterial, FirePuffs);
             InitializeCloud();
-
-            if (inAtmosphere)
-                shockFront = new SundialShockFront(transform, cloudMaterial, body.Radius + altitude, visualRadius);
+            shockFront = new SundialShockFront(transform, cloudMaterial, body.Radius + altitude, visualRadius * ShockRangeScale);
         }
 
         private void InitializeFireballCore()
@@ -216,11 +267,15 @@ namespace ProjectSundial
                 return;
             }
 
+            // The colour depends only on brightness, so look it up in a 256-entry gradient.
+            for (int g = 0; g < fireballGradient.Length; g++)
+                fireballGradient[g] = Color.Lerp(edge, hottest, g / 255f);
+            float baseBrightness = Mathf.Lerp(0.88f, 0.38f, cooling);
+            float contrast = Mathf.Lerp(0.75f, 1.44f, cooling);
             for (int i = 0; i < fireballPixels.Length; i++)
             {
-                float brightness = Mathf.Clamp01(Mathf.Lerp(0.88f, 0.38f, cooling)
-                    + (fireballMottle[i] - 0.48f) * Mathf.Lerp(0.75f, 1.44f, cooling));
-                fireballPixels[i] = Color.Lerp(edge, hottest, brightness);
+                float brightness = Mathf.Clamp01(baseBrightness + (fireballMottle[i] - 0.48f) * contrast);
+                fireballPixels[i] = fireballGradient[(int)(brightness * 255f + 0.5f)];
             }
             fireballTexture.SetPixels32(fireballPixels);
             fireballTexture.Apply(false, false);
@@ -304,7 +359,12 @@ namespace ProjectSundial
 
         private static Shader FindShader()
         {
-            foreach (string name in ShaderNames)
+            return FindShader(ShaderNames);
+        }
+
+        private static Shader FindShader(string[] names)
+        {
+            foreach (string name in names)
             {
                 Shader shader = Shader.Find(name);
                 if (shader != null && shader.isSupported)
@@ -316,11 +376,13 @@ namespace ProjectSundial
 
         private void InitializeCloud()
         {
-            int capacity = inAtmosphere
-                ? FirePuffs + ColumnPuffs + CapPuffs + CrownPuffs + UndersidePuffs + DustPuffs
-                : FirePuffs;
-            if (inAtmosphere)
-                cloud = new SundialCloudMesh(transform, cloudMaterial, capacity - FirePuffs);
+            int capacity = FirePuffs + ColumnPuffs + CapPuffs + CrownPuffs + UndersidePuffs + DustPuffs;
+            cloud = new SundialCloudMesh(transform, cloudMaterial, capacity - FirePuffs);
+            InitializeDistribution(capacity);
+        }
+
+        private void InitializeDistribution(int capacity)
+        {
             distribution = new Vector4[capacity];
             var random = new System.Random(1954);
             for (int i = 0; i < capacity; i++)
@@ -381,8 +443,8 @@ namespace ProjectSundial
             if (flash == null)
                 return;
 
-            float glare = 1f - Mathf.Clamp01(age / 1.4f);
-            flash.intensity = 9f * glare * glare;
+            float glare = 1f - Mathf.Clamp01(age / (inAtmosphere ? 1.4f : 0.9f));
+            flash.intensity = (inAtmosphere ? 9f : 14f) * glare * glare;
             flash.enabled = glare > 0f;
 
             RenderFireballCore();
@@ -394,17 +456,32 @@ namespace ProjectSundial
             bool flightView = camera != null && manager != null && manager.currentCameraMode == CameraManager.CameraMode.Flight;
             UpdateFlashVeil(eye, flightView);
 
+            Vector3 right = camera != null ? transform.InverseTransformDirection(camera.transform.right) : Vector3.right;
+            Vector3 up = camera != null ? transform.InverseTransformDirection(camera.transform.up) : Vector3.up;
+            if (!inAtmosphere)
+            {
+                if (burst != null)
+                    RenderVacuumBurst(eye, right, up);
+                if (flightView && !shaken)
+                    JoltCamera(eye);
+                return;
+            }
+
             if (glow == null)
                 return;
 
-            Vector3 right = camera != null ? transform.InverseTransformDirection(camera.transform.right) : Vector3.right;
-            Vector3 up = camera != null ? transform.InverseTransformDirection(camera.transform.up) : Vector3.up;
             glow.Draw(RenderFireball(), eye, right, up);
-            if (inAtmosphere)
-            {
-                cloud.Draw(RenderAtmosphericCloud(0), eye, LocalSunDirection());
-                shockFront.Draw(age, eye, flightView);
-            }
+            cloud.Draw(RenderAtmosphericCloud(0), eye, LocalSunDirection());
+            shockFront.Draw(age, eye, flightView);
+        }
+
+        // There is no air to carry a shock wave, so this is only a brief jolt from the flash,
+        // strongest for a camera close to the burst.
+        private void JoltCamera(Vector3 eye)
+        {
+            shaken = true;
+            float closeness = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(eye.magnitude / (visualRadius * VacuumSizeScale * 3f)));
+            SundialShockShake.Play(0.55f * closeness, 0.7f, 1.2f);
         }
 
         private Vector3 LocalSunDirection()
@@ -431,9 +508,11 @@ namespace ProjectSundial
 
             float reach = Mathf.Max(1000f, fireballRadius * 1.5f);
             float proximity = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(eye.magnitude / reach));
-            float pulse = Mathf.Clamp01(age / 0.08f)
-                * (1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((age - 0.15f) / 1.6f)));
-            veilAlpha = 0.9f * proximity * pulse;
+            float rise = inAtmosphere ? 0.08f : 0.04f;
+            float fall = inAtmosphere ? 1.6f : 0.5f;
+            float pulse = Mathf.Clamp01(age / rise)
+                * (1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((age - 0.15f) / fall)));
+            veilAlpha = (inAtmosphere ? 0.9f : 0.8f) * proximity * pulse;
         }
 
         private void OnGUI()
@@ -443,14 +522,118 @@ namespace ProjectSundial
 
             Color previous = GUI.color;
             GUI.depth = -1000;
-            GUI.color = new Color(1f, 0.97f, 0.88f, veilAlpha);
+            GUI.color = inAtmosphere
+                ? new Color(1f, 0.97f, 0.88f, veilAlpha)
+                : new Color(0.88f, 0.93f, 1f, veilAlpha);
             GUI.DrawTexture(new Rect(0f, 0f, Screen.width, Screen.height), Texture2D.whiteTexture);
             GUI.color = previous;
         }
 
+        private static Vector3 SphereDirection(Vector4 puff)
+        {
+            float y = 2f * puff.y - 1f;
+            float ring = Mathf.Sqrt(Mathf.Max(0f, 1f - y * y));
+            return new Vector3(puff.x * ring, y, puff.z * ring);
+        }
+
+        private void RenderVacuumBurst(Vector3 eye, Vector3 right, Vector3 up)
+        {
+            // Keep the burst readable from far away: its size never drops below a fixed
+            // fraction of the view distance.
+            float eyeDistance = Mathf.Max(1f, eye.magnitude);
+            float burstRadius = visualRadius * VacuumSizeScale;
+            float shellRadius = Mathf.Max(burstRadius * 0.55f, Mathf.Min(eyeDistance * 0.075f, burstRadius * 6f));
+            float t = age;
+
+            burst.Begin();
+
+            // Light thrown onto the air and ground under the burst.
+            if (lightsAtmosphere)
+            {
+                float lit = Mathf.Clamp01(t / 0.25f) * (1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((t - 0.5f) / 8f)));
+                Color glowOnGround = Color.Lerp(new Color(0.60f, 0.76f, 1f), new Color(0.78f, 0.62f, 1f), Mathf.Clamp01(t / 5f));
+                glowOnGround.a = 0.38f * lit;
+                burst.Flat(Vector3.down * groundDrop, shellRadius * 3.2f, SundialBurstQuads.GlowRegion, glowOnGround);
+            }
+
+            // Wide, soft bloom around the burst.
+            float bloomFade = 1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(t / 2.8f));
+            Color bloom = Color.Lerp(new Color(0.80f, 0.90f, 1f), new Color(0.72f, 0.60f, 1f), Mathf.Clamp01(t / VacuumRingTime));
+            bloom.a = 0.55f * bloomFade * Mathf.Clamp01(t / 0.05f);
+            burst.Billboard(Vector3.zero, shellRadius * (0.9f + 0.9f * Mathf.Clamp01(t / 2.5f)),
+                SundialBurstQuads.GlowRegion, bloom, right, up);
+
+            // Hot core: a white flash that warms and shrinks as it dies.
+            float coreAge = Mathf.Clamp01(t / 1.5f);
+            Color core = Color.Lerp(Color.white, new Color(1f, 0.90f, 0.72f), coreAge);
+            core.a = (1f - coreAge) * (1f - coreAge) * Mathf.Clamp01(t / 0.03f);
+            burst.Billboard(Vector3.zero, Mathf.Max(60f, shellRadius * 0.55f * (1f - 0.5f * coreAge)),
+                SundialBurstQuads.GlowRegion, core, right, up);
+
+            // Main shock ring: blue-white at first, fading toward violet.
+            float ringProgress = Mathf.Clamp01(t / VacuumRingTime);
+            float ringRadius = shellRadius * (1f - Mathf.Pow(1f - ringProgress, 2.4f));
+            Color ring = Color.Lerp(new Color(0.78f, 0.88f, 1f), new Color(0.80f, 0.58f, 1f), Mathf.Clamp01(t / 14f));
+            ring.a = 0.95f * (1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((t - 2f) / 17f))) * Mathf.Clamp01(t / 0.05f);
+            if (ringRadius > 1f)
+                burst.Billboard(Vector3.zero, ringRadius / SundialBurstQuads.RingPeak,
+                    SundialBurstQuads.RingRegion, ring, right, up);
+
+            // A fainter second ring trails the first.
+            float lag = t - 0.4f;
+            if (lag > 0f)
+            {
+                float lagProgress = Mathf.Clamp01(lag / VacuumSecondRingTime);
+                float lagRadius = shellRadius * 0.78f * (1f - Mathf.Pow(1f - lagProgress, 2.4f));
+                Color second = new Color(0.82f, 0.62f, 1f);
+                second.a = 0.45f * (1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((lag - 1f) / 14f)));
+                if (lagRadius > 1f)
+                    burst.Billboard(Vector3.zero, lagRadius / SundialBurstQuads.RingPeak,
+                        SundialBurstQuads.RingRegion, second, right, up);
+            }
+
+            // Debris streaks: white-hot fragments flying straight out, cooling to dark red.
+            float streakWidth = Mathf.Max(shellRadius * 0.012f, eyeDistance * 0.0012f);
+            for (int i = 0; i < VacuumStreaks; i++)
+            {
+                Vector4 puff = distribution[i];
+                float reach = shellRadius * (0.35f + 0.60f * puff.w);
+                float life = Mathf.Clamp01(t / (10f + 4f * puff.y));
+                float travel = 1f - Mathf.Pow(1f - Mathf.Clamp01(t / (12f + 6f * puff.y)), 2.4f);
+                float headDistance = reach * travel;
+                if (headDistance < 1f)
+                    continue;
+
+                float length = reach * (0.04f + 0.24f * Mathf.Sqrt(1f - travel));
+                Vector3 direction = SphereDirection(puff);
+                Vector3 head = direction * headDistance;
+                Vector3 tail = direction * Mathf.Max(0f, headDistance - length);
+                Color heat = Color.Lerp(new Color(1f, 0.97f, 0.88f), new Color(1f, 0.55f, 0.18f), Mathf.Clamp01(life * 2f));
+                heat = Color.Lerp(heat, new Color(0.55f, 0.14f, 0.08f), Mathf.Clamp01(life * 2f - 1f));
+                heat.a = 0.9f * (1f - Mathf.SmoothStep(0.55f, 1f, life)) * Mathf.Clamp01(t / 0.08f);
+                burst.Streak(tail, head, streakWidth * (0.7f + 0.6f * puff.y), eye, heat);
+            }
+
+            // A few thin, warm wisps linger where the payload was vaporised.
+            float wispFade = Mathf.Clamp01((t - 0.3f) / 1.5f)
+                * (1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((t - 6f) / (VacuumDuration - 6f))));
+            for (int i = 0; i < VacuumWisps; i++)
+            {
+                Vector4 puff = distribution[VacuumStreaks + i];
+                float spread = 1f - Mathf.Pow(1f - Mathf.Clamp01(t / VacuumDuration), 2f);
+                Vector3 position = SphereDirection(puff) * (shellRadius * 0.24f * (0.3f + 0.7f * puff.w) * spread);
+                Color wisp = Color.Lerp(new Color(1f, 0.62f, 0.30f), new Color(0.55f, 0.28f, 0.22f), Mathf.Clamp01(t / 9f));
+                wisp.a = 0.13f * wispFade;
+                burst.Billboard(position, shellRadius * (0.10f + 0.08f * puff.y) * (0.6f + 0.8f * spread),
+                    SundialBurstQuads.GlowRegion, wisp, right, up);
+            }
+
+            burst.End();
+        }
+
         private int RenderFireball()
         {
-            float duration = inAtmosphere ? CloudHandoffEnd : VacuumDuration;
+            float duration = CloudHandoffEnd;
             if (age >= duration)
                 return 0;
 
@@ -632,6 +815,12 @@ namespace ProjectSundial
                 cloud.Release();
             if (glow != null)
                 glow.Release();
+            if (burst != null)
+                burst.Release();
+            if (burstMaterial != null)
+                Destroy(burstMaterial);
+            if (burstTexture != null)
+                Destroy(burstTexture);
             if (glowMaterial != null)
                 Destroy(glowMaterial);
             if (glowTexture != null)

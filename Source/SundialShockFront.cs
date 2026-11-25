@@ -7,13 +7,17 @@ namespace ProjectSundial
     internal sealed class SundialShockFront
     {
         private const int Segments = 192;
-        private const float Duration = 38f;
+        private const float Duration = 70f;
 
-        private static readonly float[] Across = { 0f, 0.12f, 0.28f, 0.46f, 0.63f, 0.74f, 0.83f, 0.89f, 0.95f, 1f };
-        private static readonly float[] Opacity = { 0f, 0.13f, 0.24f, 0.35f, 0.41f, 0.49f, 0.73f, 0.96f, 0.46f, 0f };
-        private static readonly float[] Lift = { 0.09f, 0.13f, 0.18f, 0.25f, 0.38f, 0.55f, 0.87f, 1f, 0.58f, 0.13f };
+        // Cross-section of the front, from the tail of the dust wake (0) to the leading edge (1):
+        // a main condensation crest near 0.87 and a weaker secondary crest trailing near 0.43.
+        private const float SecondaryCrest = 0.43f;
+        private static readonly float[] Across = { 0f, 0.08f, 0.18f, 0.28f, 0.36f, 0.43f, 0.50f, 0.60f, 0.72f, 0.80f, 0.87f, 0.93f, 1f };
+        private static readonly float[] Opacity = { 0f, 0.10f, 0.20f, 0.26f, 0.42f, 0.52f, 0.32f, 0.30f, 0.46f, 0.72f, 0.98f, 0.46f, 0f };
+        private static readonly float[] Lift = { 0.08f, 0.12f, 0.17f, 0.22f, 0.40f, 0.52f, 0.30f, 0.30f, 0.52f, 0.82f, 1f, 0.58f, 0.13f };
 
         private readonly Vector2[] directions = new Vector2[Segments];
+        private readonly float[] angles = new float[Segments];
         private readonly Vector3[] vertices = new Vector3[Segments * Across.Length];
         private readonly Color32[] colors = new Color32[Segments * Across.Length];
         private readonly Mesh mesh;
@@ -47,6 +51,7 @@ namespace ProjectSundial
             for (int segment = 0; segment < Segments; segment++)
             {
                 float angle = segment * (2f * Mathf.PI / Segments);
+                angles[segment] = angle;
                 directions[segment] = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle));
                 int next = (segment + 1) % Segments;
                 for (int row = 0; row < Across.Length; row++)
@@ -84,21 +89,25 @@ namespace ProjectSundial
                 return;
 
             float spread = Mathf.Sqrt(progress);
-            float width = Mathf.Min(front * 0.78f, range * Mathf.Lerp(0.020f, 0.26f, spread));
-            float fade = Mathf.Sqrt(1f - Mathf.SmoothStep(0.05f, 1f, progress));
-            float opacity = Mathf.Clamp01(elapsed * 2f) * fade * 0.70f;
-            float rise = range * Mathf.Lerp(0.0007f, 0.023f, spread);
-            Color dust = new Color(0.69f, 0.59f, 0.46f);
-            Color condensation = new Color(0.92f, 0.92f, 0.88f);
+            float width = Mathf.Min(front * 0.78f, range * Mathf.Lerp(0.020f, 0.20f, spread));
+            // Stays strong for most of its life and only fades toward the end.
+            float opacity = Mathf.Clamp01(elapsed * 2f) * (1f - Mathf.SmoothStep(0.30f, 1f, progress)) * 0.82f;
+            float rise = range * Mathf.Lerp(0.0007f, 0.018f, spread);
+
+            // Just after the blast the dust wall is lit orange by the fireball, then cools to tan.
+            float scorch = 0.85f * (1f - Mathf.SmoothStep(0f, 14f, elapsed));
+            Color dust = Color.Lerp(new Color(0.69f, 0.59f, 0.46f), new Color(0.98f, 0.66f, 0.38f), scorch);
+            Color condensation = Color.Lerp(new Color(0.92f, 0.92f, 0.88f), new Color(1f, 0.90f, 0.74f), scorch * 0.7f);
 
             for (int segment = 0; segment < Segments; segment++)
             {
                 Vector2 direction = directions[segment];
-                float angle = segment * (2f * Mathf.PI / Segments);
+                float angle = angles[segment];
                 float swell = Mathf.Sin(angle * 7f + elapsed * 0.24f);
                 float chop = Mathf.Sin(angle * 19f - elapsed * 0.31f);
                 float leadingEdge = front + width * (0.060f * swell + 0.034f * chop);
                 float wakeWidth = width * (0.92f + 0.12f * swell);
+                float crestWake = 0.83f + 0.17f * swell;
                 for (int row = 0; row < Across.Length; row++)
                 {
                     float fraction = Across[row];
@@ -112,8 +121,9 @@ namespace ProjectSundial
                     float crest = Mathf.SmoothStep(0f, 1f, (fraction - 0.61f) / 0.27f);
                     float wake = 0.66f + 0.25f * Mathf.Sin(angle * 13f + fraction * 12f - elapsed * 0.35f)
                         + 0.09f * chop;
-                    Color tone = Color.Lerp(dust, condensation, crest);
-                    tone.a = opacity * Opacity[row] * Mathf.Lerp(wake, 0.83f + 0.17f * swell, crest);
+                    float secondary = Mathf.Clamp01(1f - Mathf.Abs(fraction - SecondaryCrest) / 0.10f);
+                    Color tone = Color.Lerp(dust, condensation, Mathf.Max(crest, 0.55f * secondary));
+                    tone.a = opacity * Opacity[row] * Mathf.Lerp(wake, crestWake, crest);
                     colors[index] = tone;
                 }
             }

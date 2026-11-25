@@ -2,8 +2,8 @@ using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 
-[assembly: AssemblyVersion("0.6.2.0")]
-[assembly: KSPAssembly("ProjectSundial", 0, 6)]
+[assembly: AssemblyVersion("0.7.8.0")]
+[assembly: KSPAssembly("ProjectSundial", 0, 7)]
 
 namespace ProjectSundial
 {
@@ -14,6 +14,11 @@ namespace ProjectSundial
         [KSPField] public float visualRadius = 12000f;
         [KSPField] public float fireballRadius = 2800f;
 
+        // Above the atmosphere there is no blast wave to blunt the X-rays, so the damage reaches
+        // much further, but only parts with a clear line of sight to the burst are destroyed.
+        [KSPField] public float vacuumBlastRadius = 8000f;
+        [KSPField] public bool vacuumShielding = true;
+
         [KSPField(guiActive = true, guiActiveEditor = true, guiName = "Proposed yield")]
         public string proposedYield = "10,000 Mt TNT (10 Gt)";
 
@@ -22,6 +27,8 @@ namespace ProjectSundial
 
         [KSPField(guiActive = true, guiName = "Sundial")]
         public string status = "Safe";
+
+        private static readonly RaycastHit[] ShieldHits = new RaycastHit[256];
 
         private bool detonated;
         private int displayedSeconds = -1;
@@ -35,7 +42,9 @@ namespace ProjectSundial
                 $"Proposed yield: {proposedYield}\n\n" +
                 $"KSP countdown: {countdownSeconds:0} s\n" +
                 $"KSP fireball radius in atmosphere: {fireballRadius / 1000f:0.#} km\n" +
-                $"KSP damage radius: {blastRadius:0} m";
+                $"KSP damage radius in atmosphere: {blastRadius:0} m\n" +
+                $"KSP damage radius in vacuum: {vacuumBlastRadius:0} m" +
+                (vacuumShielding ? " (parts behind other parts are shielded)" : "");
         }
 
         public override void OnStart(StartState state)
@@ -145,6 +154,27 @@ namespace ProjectSundial
             status = $"Detonation in {seconds} s";
         }
 
+        // True when another part sits between the burst and the target and would absorb the X-rays.
+        private bool IsShielded(Vector3 center, Part target)
+        {
+            Vector3 toTarget = target.transform.position - center;
+            float distance = toTarget.magnitude;
+            if (distance < 0.5f)
+                return false;
+
+            int hitCount = Physics.RaycastNonAlloc(center, toTarget / distance, ShieldHits, distance,
+                Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < hitCount; i++)
+            {
+                RaycastHit hit = ShieldHits[i];
+                Part blocker = hit.collider != null ? hit.collider.GetComponentInParent<Part>() : null;
+                if (blocker != null && blocker != part && blocker != target)
+                    return true;
+            }
+
+            return false;
+        }
+
         private void Detonate()
         {
             if (detonated || vessel == null)
@@ -153,8 +183,13 @@ namespace ProjectSundial
             detonated = true;
             CelestialBody body = vessel.mainBody;
             Vector3 center = part.transform.position;
+            bool vacuum = SundialDetonationEffect.IsVacuum(body, body.GetAltitude(center));
+
+            // Everything inside the blast radius is destroyed. In vacuum the X-ray radius is larger.
             float radius = Mathf.Max(1f, blastRadius);
             float radiusSquared = radius * radius;
+            float reach = vacuum ? Mathf.Max(radius, vacuumBlastRadius) : radius;
+            float reachSquared = reach * reach;
 
             // Cache the targets before explosions split or remove vessels.
             Vessel watchedVessel = SundialCameraZoom.WatchedVessel();
@@ -168,8 +203,14 @@ namespace ProjectSundial
 
                 foreach (Part target in candidate.parts)
                 {
-                    if (target == null || target == part ||
-                        (target.transform.position - center).sqrMagnitude > radiusSquared)
+                    if (target == null || target == part)
+                        continue;
+
+                    float distanceSquared = (target.transform.position - center).sqrMagnitude;
+                    if (distanceSquared > reachSquared)
+                        continue;
+
+                    if (distanceSquared > radiusSquared && vacuumShielding && IsShielded(center, target))
                         continue;
 
                     watchedVesselHit |= candidate == watchedVessel;
@@ -187,6 +228,11 @@ namespace ProjectSundial
             if (watchedVesselHit)
                 SundialCameraZoom.Preserve();
 
+            // Spawn the burst first so the camera can be pinned to it before its vessel is destroyed.
+            SundialDetonationEffect effect = SundialDetonationEffect.Spawn(center, body, visualRadius, fireballRadius);
+            if (effect != null && watchedVessel != null && watchedVessel == vessel)
+                SundialCameraHold.Pin(effect.transform);
+
             part.explode();
             foreach (Part target in targets)
             {
@@ -194,8 +240,8 @@ namespace ProjectSundial
                     target.explode();
             }
 
-            ScreenMessages.PostScreenMessage("Sundial detonated", 4f, ScreenMessageStyle.UPPER_CENTER);
-            SundialDetonationEffect.Spawn(center, body, visualRadius, fireballRadius);
+            ScreenMessages.PostScreenMessage(
+                vacuum ? "Sundial detonated in vacuum" : "Sundial detonated", 4f, ScreenMessageStyle.UPPER_CENTER);
 
             foreach (ModuleSundialPayload other in chained)
             {
