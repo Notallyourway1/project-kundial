@@ -2,7 +2,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 
-[assembly: AssemblyVersion("0.8.1.0")]
+[assembly: AssemblyVersion("0.8.2.0")]
 [assembly: KSPAssembly("ProjectSundial", 0, 8)]
 
 namespace ProjectSundial
@@ -16,7 +16,7 @@ namespace ProjectSundial
 
         // Above the atmosphere there is no blast wave to blunt the X-rays, so the damage reaches
         // much further, but only parts with a clear line of sight to the burst are destroyed.
-        [KSPField] public float vacuumBlastRadius = 8000f;
+        [KSPField] public float vacuumBlastRadius = 100000f;
         [KSPField] public bool vacuumShielding = true;
 
         [KSPField(guiActive = true, guiActiveEditor = true, guiName = "Proposed yield")]
@@ -170,6 +170,20 @@ namespace ProjectSundial
             status = $"Detonation in {seconds} s";
         }
 
+        // True when the planet itself sits between the burst and the target, as for a vessel on the
+        // far side of the world. The X-rays travel in a straight line, so the planet shields it.
+        private static bool BlockedByPlanet(CelestialBody body, Vector3d from, Vector3d to)
+        {
+            Vector3d along = to - from;
+            double lengthSquared = along.sqrMagnitude;
+            if (lengthSquared < 1d)
+                return false;
+
+            double t = System.Math.Max(0d, System.Math.Min(1d, Vector3d.Dot(body.position - from, along) / lengthSquared));
+            Vector3d closest = from + along * t;
+            return (closest - body.position).magnitude < body.Radius - 5d;
+        }
+
         // True when another part sits between the burst and the target and would absorb the X-rays.
         private bool IsShielded(Vector3 center, Part target)
         {
@@ -241,6 +255,29 @@ namespace ProjectSundial
                 }
             }
 
+            // Vessels outside physics range are not simulated part by part, so out to the full vacuum
+            // radius each one is destroyed whole, unless the planet is in the way. There is no
+            // line-of-sight check for these because their colliders do not exist.
+            var distantVessels = new List<Vessel>();
+            if (vacuum)
+            {
+                foreach (Vessel candidate in FlightGlobals.Vessels)
+                {
+                    if (candidate == null || candidate == vessel || candidate.mainBody != body
+                        || candidate.state == Vessel.State.DEAD || (candidate.loaded && !candidate.packed)
+                        || candidate.vesselType == VesselType.Flag || candidate.vesselType == VesselType.SpaceObject)
+                        continue;
+
+                    Vector3d position = candidate.GetWorldPos3D();
+                    if ((position - (Vector3d)center).sqrMagnitude > reachSquared)
+                        continue;
+                    if (BlockedByPlanet(body, (Vector3d)center, position))
+                        continue;
+
+                    distantVessels.Add(candidate);
+                }
+            }
+
             if (watchedVesselHit)
                 SundialCameraZoom.Preserve();
 
@@ -256,8 +293,27 @@ namespace ProjectSundial
                     target.explode();
             }
 
-            ScreenMessages.PostScreenMessage(
-                vacuum ? "Sundial detonated in vacuum" : "Sundial detonated", 4f, ScreenMessageStyle.UPPER_CENTER);
+            int destroyedDistant = 0;
+            foreach (Vessel far in distantVessels)
+            {
+                try
+                {
+                    if (far != null && far.state != Vessel.State.DEAD)
+                    {
+                        far.Die();
+                        destroyedDistant++;
+                    }
+                }
+                catch (System.Exception error)
+                {
+                    Debug.LogWarning("[ProjectSundial] Could not destroy distant vessel: " + error.Message);
+                }
+            }
+
+            string message = vacuum ? "Sundial detonated in vacuum" : "Sundial detonated";
+            if (destroyedDistant > 0)
+                message += " (" + destroyedDistant + " distant vessel" + (destroyedDistant == 1 ? "" : "s") + " destroyed)";
+            ScreenMessages.PostScreenMessage(message, 4f, ScreenMessageStyle.UPPER_CENTER);
 
             foreach (ModuleSundialPayload other in chained)
             {

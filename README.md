@@ -1,6 +1,6 @@
-# Project Kundial v0.4
+# Project Kundial v0.5
 
-Project Sundial Payload is a standalone part for Kerbal Space Program 1.12.x. The v0.4 release contains the v0.8.1 plugin. The source and changelog use the plugin version.
+Project Sundial Payload is a standalone part for Kerbal Space Program 1.12.x. The v0.5 release contains the v0.8.2 plugin. The source and changelog use the plugin version.
 
 ## Attaching and the structural cage
 
@@ -14,7 +14,7 @@ The ribbed casing is a fictional depiction for KSP. The part's dimensions, mass,
 
 ## Install or upgrade
 
-1. Quit KSP and extract the [ready-to-install ZIP](https://notallyourway1.github.io/project-kundial/downloads/project-kundial-v0.4.zip). It includes the compiled plugin. If you downloaded the source ZIP, [build the plugin](#building) first.
+1. Quit KSP and extract the [ready-to-install ZIP](https://notallyourway1.github.io/project-kundial/downloads/project-kundial-v0.5.zip). It includes the compiled plugin. If you downloaded the source ZIP, [build the plugin](#building) first.
 2. Open the KSP folder that contains your existing `GameData` folder.
 3. Copy the archive's `GameData/ProjectSundial` folder into your existing `GameData`. If your file manager asks, replace the old `ProjectSundial` folder. The DLL should be at `GameData/ProjectSundial/Plugins/ProjectSundial.dll`.
 4. Start KSP and find **Project Sundial Payload** under **Utility** or search for **Sundial**. Career and Science modes unlock it with Heavy Rocketry. The v0.1 part identifier is retained for existing craft and saves.
@@ -27,7 +27,7 @@ The 24-tonne KSP part is 11 m long and tapers from a 3.75 m body to a 2.5 m stac
 
 In an atmosphere, a bright textured core and its own soft halo form a fireball with a **2.8 km visual radius** (5.6 km across, scaled to Kerbin). The fireball swells from the initial flash and slows as it grows. Its surface churns and cools from white to gold-orange, with bright cream veins running across it and a soft, shifting halo. A burst close to the camera opens with a white-out flash. Smoke fades in after the fireball peaks. The hot center rises into a broad, flat-topped mushroom cap of cream billows lit by the sun, with cool blue-grey shading, glowing orange patches, a bright warm underside and a dark reddish stem that flares at its base. Animated 3D billows build the crown, rolling rim, underside and smoke column, while a low dust skirt and a pale shock front spread outward. The front follows the planet’s curvature with a raised, uneven crest and a broad, diffuse dust wake. The front travels up to about 36 km over 95 seconds, starting fast and slowing as it spreads, with a tall condensation wall, a trailing second crest and a dust wall that is lit orange at first and cools to tan, and it gives the flight camera a brief shake when it passes your viewpoint. The shake is weaker at higher altitudes and longer distances. For a sea-level burst on stock Kerbin, the cloud tops out near **11 km**, with a cap that fans out to roughly **27.5 km across**, about two and a half times as wide as the cloud is tall. The height is capped to 90% of the atmosphere remaining above the burst. The cloud and smoke last about 80 seconds and the whole effect about 100. A white flash tints the sky and briefly lifts the ambient light, a faint shimmering shell of hot air surrounds the fireball while it cools, and a warm light rides the crest of the shock front. A detonation above the atmosphere looks completely different: there is no fireball dome, ground shock front or mushroom cloud. You see a white flash and bloom, two thin shock rings that reach about 45% farther than the debris shell, expand over 9 and 11 seconds and fade over about 30 seconds, 56 streaks of hot debris that cool from white to red, a few thin lingering wisps, a glow on the air and ground below the burst and a brief camera jolt when the camera is close. The burst keeps a minimum size on screen so it stays readable from far away, and the whole effect lasts 42 seconds. Watch the effects in flight view. Sundial temporarily widens the stock destruction-camera zoom limits to include your selected distance when the craft you are viewing is hit.
 
-In an atmosphere, the damage reaches parts within 2.2 km on same-body vessels with active physics, including the launch vehicle if it remains in range. Above the atmosphere (or on a body with none), there is no blast wave to absorb the X-rays, so the damage reaches **8 km**. Parts beyond 2.2 km are only destroyed if no other part blocks the straight line from the burst to them. Terrain does not shield. Only vessels within physics range are affected, normally about 2.5 km, so the full 8 km applies only if you have extended the loading distances. `vacuumBlastRadius` and `vacuumShielding` in the part config control this. Other Sundial payloads inside that radius detonate with their own effect. The timer persists across quicksaves and vessel switches. If the fuse expires while the payload is packed or unloaded, detonation waits until its physics resume.
+In an atmosphere, the damage reaches parts within 2.2 km on same-body vessels with active physics, including the launch vehicle if it remains in range. Above the atmosphere (or on a body with none), there is no blast wave to absorb the X-rays, so the damage reaches **100 km**. Parts in physics range (normally about 2.5 km, more if you extended the loading distances) beyond 2.2 km are only destroyed if no other part blocks the straight line from the burst to them. Terrain close to the burst does not shield. Vessels outside physics range, including unloaded ones, are destroyed whole anywhere within 100 km unless the planet itself is between them and the burst; they get no line-of-sight check. Flags and asteroids are spared, and the detonation message says how many distant vessels were destroyed. `vacuumBlastRadius` and `vacuumShielding` in the part config control this. Other Sundial payloads inside that radius detonate with their own effect. The timer persists across quicksaves and vessel switches. If the fuse expires while the payload is packed or unloaded, detonation waits until its physics resume.
 
 ## Sources and credits
 
@@ -63,6 +63,12 @@ sh build.sh "/path/to/KSP.app/Contents/Resources/Data/Managed"
 On Linux, pass the Managed directory under `KSP_Data` or `KSP_x64_Data`, depending on your install.
 
 Run `Source/BuildCasing.py ASSET_DIRECTORY FONT.ttf` with Pillow installed and the io_object_mu project’s `mu.py` on the Python module path to regenerate the casing assets.
+
+## Changes in v0.8.2
+
+- The vacuum damage radius is 100 km (was 8 km): `vacuumBlastRadius` in `Sundial.cfg` and the module default are 100000.
+- New: vessels outside physics range, loaded and packed or unloaded, are destroyed whole inside that radius unless the planet blocks the line to the burst. Flags and asteroids are spared. The on-screen message reports the count.
+- Not run in game by the author. Destroying unloaded vessels in particular is untested, including how crew and the tracking station record it.
 
 ## Changes in v0.8.1
 
