@@ -7,7 +7,7 @@ namespace ProjectSundial
     internal sealed class SundialShockFront
     {
         private const int Segments = 192;
-        private const float Duration = 70f;
+        private const float Duration = 95f;
 
         // Cross-section of the front, from the tail of the dust wake (0) to the leading edge (1):
         // a main condensation crest near 0.87 and a weaker secondary crest trailing near 0.43.
@@ -15,6 +15,30 @@ namespace ProjectSundial
         private static readonly float[] Across = { 0f, 0.08f, 0.18f, 0.28f, 0.36f, 0.43f, 0.50f, 0.60f, 0.72f, 0.80f, 0.87f, 0.93f, 1f };
         private static readonly float[] Opacity = { 0f, 0.10f, 0.20f, 0.26f, 0.42f, 0.52f, 0.32f, 0.30f, 0.46f, 0.72f, 0.98f, 0.46f, 0f };
         private static readonly float[] Lift = { 0.08f, 0.12f, 0.17f, 0.22f, 0.40f, 0.52f, 0.30f, 0.30f, 0.52f, 0.82f, 1f, 0.58f, 0.13f };
+
+        // Per-row blend factors depend only on the cross-section, so they are worked out once.
+        private static readonly float[] ToneBlend = BuildToneBlend();
+        private static readonly float[] CrestAmount = BuildCrestAmount();
+
+        private static float[] BuildCrestAmount()
+        {
+            var result = new float[Across.Length];
+            for (int row = 0; row < result.Length; row++)
+                result[row] = Mathf.SmoothStep(0f, 1f, (Across[row] - 0.61f) / 0.27f);
+            return result;
+        }
+
+        private static float[] BuildToneBlend()
+        {
+            var result = new float[Across.Length];
+            for (int row = 0; row < result.Length; row++)
+            {
+                float crest = Mathf.SmoothStep(0f, 1f, (Across[row] - 0.61f) / 0.27f);
+                float secondary = Mathf.Clamp01(1f - Mathf.Abs(Across[row] - SecondaryCrest) / 0.10f);
+                result[row] = Mathf.Max(crest, 0.55f * secondary);
+            }
+            return result;
+        }
 
         private readonly Vector2[] directions = new Vector2[Segments];
         private readonly float[] angles = new float[Segments];
@@ -28,6 +52,9 @@ namespace ProjectSundial
         private bool passedCamera;
         private float previousOffset;
         private float previousFront;
+        private float lastElapsed;
+        private float lastProgress;
+        private float lastFront;
 
         internal SundialShockFront(Transform parent, Material material, double surfaceRadius, float range)
         {
@@ -77,7 +104,10 @@ namespace ProjectSundial
         internal void Draw(float elapsed, Vector3 eye, bool observeCamera)
         {
             float progress = Mathf.Clamp01(elapsed / Duration);
-            float front = range * Mathf.Pow(progress, 0.74f);
+            float front = range * Mathf.Pow(progress, 0.62f);
+            lastElapsed = elapsed;
+            lastProgress = progress;
+            lastFront = front;
             if (front > previousFront)
             {
                 CheckCameraCrossing(front, eye, observeCamera);
@@ -118,18 +148,40 @@ namespace ProjectSundial
                     int index = row * Segments + segment;
                     vertices[index] = new Vector3(direction.x * horizontal, height, direction.y * horizontal);
 
-                    float crest = Mathf.SmoothStep(0f, 1f, (fraction - 0.61f) / 0.27f);
+                    float crest = CrestAmount[row];
                     float wake = 0.66f + 0.25f * Mathf.Sin(angle * 13f + fraction * 12f - elapsed * 0.35f)
                         + 0.09f * chop;
-                    float secondary = Mathf.Clamp01(1f - Mathf.Abs(fraction - SecondaryCrest) / 0.10f);
-                    Color tone = Color.Lerp(dust, condensation, Mathf.Max(crest, 0.55f * secondary));
+                    Color tone = Color.Lerp(dust, condensation, ToneBlend[row]);
                     tone.a = opacity * Opacity[row] * Mathf.Lerp(wake, crestWake, crest);
                     colors[index] = tone;
                 }
             }
-            mesh.vertices = vertices;
+            mesh.SetVertices(vertices, 0, vertices.Length);
             mesh.colors32 = colors;
-            mesh.RecalculateBounds();
+            mesh.bounds = new Bounds(Vector3.zero, new Vector3(range * 2.6f, range * 2.6f, range * 2.6f));
+        }
+
+        // Where the crest is, on the bearing toward the viewer, so a light can ride along with it.
+        // strength fades from full to nothing over the front's life.
+        internal bool TryGetCrest(Vector3 eye, out Vector3 position, out float width, out float strength)
+        {
+            position = Vector3.zero;
+            width = 0f;
+            strength = 0f;
+            if (lastElapsed <= 0f || lastElapsed >= Duration)
+                return false;
+
+            float spread = Mathf.Sqrt(lastProgress);
+            width = Mathf.Min(lastFront * 0.78f, range * Mathf.Lerp(0.020f, 0.20f, spread));
+            strength = Mathf.Clamp01(lastElapsed * 2f) * (1f - Mathf.SmoothStep(0.25f, 1f, lastProgress));
+
+            Vector2 bearing = new Vector2(eye.x, eye.z);
+            bearing = bearing.sqrMagnitude < 1f ? Vector2.right : bearing.normalized;
+            double arc = (lastFront - width * 0.13f) / surfaceRadius;
+            float horizontal = (float)(Math.Sin(arc) * surfaceRadius);
+            float height = (float)((Math.Cos(arc) - 1d) * surfaceRadius) + Mathf.Max(200f, width * 0.15f);
+            position = new Vector3(bearing.x * horizontal, height, bearing.y * horizontal);
+            return strength > 0.001f;
         }
 
         private void CheckCameraCrossing(float front, Vector3 eye, bool observeCamera)

@@ -10,13 +10,15 @@ namespace ProjectSundial
         private const int CrownPuffs = 110;
         private const int UndersidePuffs = 110;
         private const int DustPuffs = 30;
-        private const float AtmosphereDuration = 80f;
+        private const float AtmosphereDuration = 100f;
+        // The cloud and smoke keep their original 80 s timeline; the longer life is for the shock front.
+        private const float CloudLife = 80f;
         private const float CloudFadeStart = 62f;
         private const float CloudGrowthTime = 40f;
         private const float CapRadiusRatio = 1.25f;
 
         // The ground shock front travels this many times the blast radius before it fades.
-        private const float ShockRangeScale = 1.7f;
+        private const float ShockRangeScale = 3.0f;
 
         // The vacuum burst was tuned when visualRadius was 8500 m; keep that size now that it is larger.
         private const float VacuumSizeScale = 8500f / 12000f;
@@ -36,8 +38,11 @@ namespace ProjectSundial
         private const int VacuumWisps = 14;
         private const int VacuumParticles = VacuumStreaks + VacuumWisps;
         private const int BurstQuadCapacity = VacuumParticles + 6;
-        private const float VacuumRingTime = 12f;
-        private const float VacuumSecondRingTime = 14f;
+        private const float VacuumRingTime = 9f;
+        private const float VacuumSecondRingTime = 11f;
+        // How much farther the vacuum rings travel than the debris shell, and how long the burst object lives.
+        private const float VacuumRingReach = 1.45f;
+        private const float VacuumLife = 42f;
 
         private static readonly string[] AdditiveShaderNames =
         {
@@ -63,6 +68,10 @@ namespace ProjectSundial
         private float fireballRadius;
         private float cloudTopRise;
         private float veilAlpha;
+        private Light waveLight;
+        private SundialHeatHaze haze;
+        private Color ambientBefore;
+        private bool ambientApplied;
 
         private Light flash;
         private Transform fireballCore;
@@ -160,6 +169,13 @@ namespace ProjectSundial
             }
 
             cloudMaterial = new Material(shader) { mainTexture = Texture2D.whiteTexture };
+            haze = new SundialHeatHaze(transform, cloudMaterial);
+            var waveNode = new GameObject("Sundial shock wave light");
+            waveNode.transform.SetParent(transform, false);
+            waveLight = waveNode.AddComponent<Light>();
+            waveLight.type = LightType.Point;
+            waveLight.shadows = LightShadows.None;
+            waveLight.enabled = false;
             glowTexture = CreateGlowTexture();
             glowMaterial = new Material(shader) { mainTexture = glowTexture };
             glow = new SundialFireballGlow(transform, glowMaterial, FirePuffs);
@@ -426,7 +442,7 @@ namespace ProjectSundial
         private void LateUpdate()
         {
             age += Time.deltaTime;
-            float duration = inAtmosphere ? AtmosphereDuration : VacuumDuration;
+            float duration = inAtmosphere ? AtmosphereDuration : VacuumLife;
             if (body == null || age >= duration)
             {
                 Destroy(gameObject);
@@ -448,6 +464,7 @@ namespace ProjectSundial
             flash.enabled = glare > 0f;
 
             RenderFireballCore();
+            UpdateAmbientFlash();
 
             var flightCamera = FlightCamera.fetch;
             Camera camera = flightCamera != null ? flightCamera.mainCamera : Camera.main;
@@ -473,6 +490,86 @@ namespace ProjectSundial
             glow.Draw(RenderFireball(), eye, right, up);
             cloud.Draw(RenderAtmosphericCloud(0), eye, LocalSunDirection());
             shockFront.Draw(age, eye, flightView);
+            UpdateHaze(eye);
+            UpdateWaveLight(eye);
+        }
+
+        // A shimmering shell of hot air that follows the fireball and fades as it cools.
+        private void UpdateHaze(Vector3 eye)
+        {
+            if (haze == null)
+                return;
+
+            if (fireballCore == null || !fireballCore.gameObject.activeSelf)
+            {
+                haze.Draw(Vector3.zero, 0f, 0f, eye, age);
+                return;
+            }
+
+            float alpha = 0.34f * Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((age - 0.3f) / 1.5f))
+                * (1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((age - 4f) / 9f)));
+            haze.Draw(fireballCore.localPosition, fireballCore.localScale.x * 0.5f * 1.22f, alpha, eye, age);
+        }
+
+        // A warm light that rides on the crest of the shock front, nearest the viewer, so the
+        // ground and parts around the wave catch the glow as it passes.
+        private void UpdateWaveLight(Vector3 eye)
+        {
+            if (waveLight == null || shockFront == null)
+                return;
+
+            Vector3 position;
+            float width;
+            float strength;
+            if (!shockFront.TryGetCrest(eye, out position, out width, out strength))
+            {
+                waveLight.enabled = false;
+                return;
+            }
+
+            waveLight.transform.localPosition = position;
+            waveLight.range = Mathf.Max(1500f, width * 2.8f);
+            waveLight.intensity = 2.4f * strength;
+            waveLight.color = Color.Lerp(new Color(1f, 0.74f, 0.46f), new Color(1f, 0.90f, 0.78f),
+                Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(age / 40f)));
+            waveLight.enabled = true;
+        }
+
+        // How strongly the opening flash lights the whole sky: quick to rise, slow to fade.
+        private float SkyPulse()
+        {
+            float fall = inAtmosphere ? 3.6f : 2.2f;
+            return Mathf.Clamp01(age / 0.08f)
+                * (1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((age - 0.15f) / fall)));
+        }
+
+        // Briefly lifts the scene's ambient light toward the flash colour, then puts it back.
+        private void UpdateAmbientFlash()
+        {
+            float pulse = SkyPulse();
+            if (pulse <= 0.01f)
+            {
+                RestoreAmbient();
+                return;
+            }
+
+            if (RenderSettings.ambientMode != UnityEngine.Rendering.AmbientMode.Flat)
+                return;
+
+            if (!ambientApplied)
+                ambientBefore = RenderSettings.ambientLight;
+            Color flashColor = inAtmosphere ? new Color(1f, 0.90f, 0.72f) : new Color(0.80f, 0.88f, 1f);
+            RenderSettings.ambientLight = Color.Lerp(ambientBefore, flashColor, 0.5f * pulse);
+            ambientApplied = true;
+        }
+
+        private void RestoreAmbient()
+        {
+            if (!ambientApplied)
+                return;
+
+            RenderSettings.ambientLight = ambientBefore;
+            ambientApplied = false;
         }
 
         // There is no air to carry a shock wave, so this is only a brief jolt from the flash,
@@ -512,7 +609,11 @@ namespace ProjectSundial
             float fall = inAtmosphere ? 1.6f : 0.5f;
             float pulse = Mathf.Clamp01(age / rise)
                 * (1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((age - 0.15f) / fall)));
-            veilAlpha = (inAtmosphere ? 0.9f : 0.8f) * proximity * pulse;
+            float close = (inAtmosphere ? 0.9f : 0.8f) * proximity * pulse;
+
+            // Everyone in flight view sees a faint tint across the sky, however far away.
+            float sky = (inAtmosphere ? 0.22f : 0.10f) * SkyPulse();
+            veilAlpha = Mathf.Max(close, sky);
         }
 
         private void OnGUI()
@@ -572,9 +673,9 @@ namespace ProjectSundial
 
             // Main shock ring: blue-white at first, fading toward violet.
             float ringProgress = Mathf.Clamp01(t / VacuumRingTime);
-            float ringRadius = shellRadius * (1f - Mathf.Pow(1f - ringProgress, 2.4f));
+            float ringRadius = shellRadius * VacuumRingReach * (1f - Mathf.Pow(1f - ringProgress, 2.4f));
             Color ring = Color.Lerp(new Color(0.78f, 0.88f, 1f), new Color(0.80f, 0.58f, 1f), Mathf.Clamp01(t / 14f));
-            ring.a = 0.95f * (1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((t - 2f) / 17f))) * Mathf.Clamp01(t / 0.05f);
+            ring.a = 0.95f * (1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((t - 2f) / 30f))) * Mathf.Clamp01(t / 0.05f);
             if (ringRadius > 1f)
                 burst.Billboard(Vector3.zero, ringRadius / SundialBurstQuads.RingPeak,
                     SundialBurstQuads.RingRegion, ring, right, up);
@@ -584,9 +685,9 @@ namespace ProjectSundial
             if (lag > 0f)
             {
                 float lagProgress = Mathf.Clamp01(lag / VacuumSecondRingTime);
-                float lagRadius = shellRadius * 0.78f * (1f - Mathf.Pow(1f - lagProgress, 2.4f));
+                float lagRadius = shellRadius * VacuumRingReach * 0.78f * (1f - Mathf.Pow(1f - lagProgress, 2.4f));
                 Color second = new Color(0.82f, 0.62f, 1f);
-                second.a = 0.45f * (1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((lag - 1f) / 14f)));
+                second.a = 0.45f * (1f - Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((lag - 1f) / 26f)));
                 if (lagRadius > 1f)
                     burst.Billboard(Vector3.zero, lagRadius / SundialBurstQuads.RingPeak,
                         SundialBurstQuads.RingRegion, second, right, up);
@@ -682,7 +783,7 @@ namespace ProjectSundial
         private int RenderAtmosphericCloud(int count)
         {
             float density = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((age - 8f) / 10f))
-                * (1f - Mathf.Clamp01((age - CloudFadeStart) / (AtmosphereDuration - CloudFadeStart)));
+                * (1f - Mathf.Clamp01((age - CloudFadeStart) / (CloudLife - CloudFadeStart)));
             if (density <= 0f)
                 return count;
 
@@ -805,6 +906,9 @@ namespace ProjectSundial
 
         private void OnDestroy()
         {
+            RestoreAmbient();
+            if (haze != null)
+                haze.Release();
             if (fireballMesh != null)
                 Destroy(fireballMesh);
             if (fireballTexture != null)

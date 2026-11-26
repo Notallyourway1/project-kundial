@@ -2,12 +2,12 @@ using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
 
-[assembly: AssemblyVersion("0.7.8.0")]
-[assembly: KSPAssembly("ProjectSundial", 0, 7)]
+[assembly: AssemblyVersion("0.8.1.0")]
+[assembly: KSPAssembly("ProjectSundial", 0, 8)]
 
 namespace ProjectSundial
 {
-    public sealed class ModuleSundialPayload : PartModule
+    public sealed class ModuleSundialPayload : PartModule, IPartMassModifier, IPartCostModifier
     {
         [KSPField] public float countdownSeconds = 10f;
         [KSPField] public float blastRadius = 2200f;
@@ -28,6 +28,14 @@ namespace ProjectSundial
         [KSPField(guiActive = true, guiName = "Sundial")]
         public string status = "Safe";
 
+        // Optional steel frame around the casing, switched on in the VAB.
+        [KSPField(isPersistant = true, guiActive = false, guiActiveEditor = true, guiName = "Structural cage"),
+            UI_Toggle(disabledText = "Off", enabledText = "On", scene = UI_Scene.Editor)]
+        public bool cage;
+
+        [KSPField] public float cageMass = 3f;
+        [KSPField] public float cageCost = 2500f;
+
         private static readonly RaycastHit[] ShieldHits = new RaycastHit[256];
 
         private bool detonated;
@@ -38,13 +46,14 @@ namespace ProjectSundial
 
         public override string GetInfo()
         {
+            string cageInfo = $"\nOptional structural cage (VAB): +{cageMass:0.#} t, +{cageCost:0} funds";
             return $"July 1954 proposal. Sundial was never built or tested.\n" +
                 $"Proposed yield: {proposedYield}\n\n" +
                 $"KSP countdown: {countdownSeconds:0} s\n" +
                 $"KSP fireball radius in atmosphere: {fireballRadius / 1000f:0.#} km\n" +
                 $"KSP damage radius in atmosphere: {blastRadius:0} m\n" +
                 $"KSP damage radius in vacuum: {vacuumBlastRadius:0} m" +
-                (vacuumShielding ? " (parts behind other parts are shielded)" : "");
+                (vacuumShielding ? " (parts behind other parts are shielded)" : "") + cageInfo;
         }
 
         public override void OnStart(StartState state)
@@ -52,7 +61,14 @@ namespace ProjectSundial
             base.OnStart(state);
             if (HighLogic.LoadedSceneIsFlight)
                 RefreshControls();
+            if (HighLogic.LoadedSceneIsFlight || HighLogic.LoadedSceneIsEditor)
+                SundialCage.Attach(this);
         }
+
+        public float GetModuleMass(float defaultMass, ModifierStagingSituation sit) => cage ? cageMass : 0f;
+        public ModifierChangeWhen GetModuleMassChangeWhen() => ModifierChangeWhen.FIXED;
+        public float GetModuleCost(float defaultCost, ModifierStagingSituation sit) => cage ? cageCost : 0f;
+        public ModifierChangeWhen GetModuleCostChangeWhen() => ModifierChangeWhen.FIXED;
 
         public override void OnUpdate()
         {

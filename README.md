@@ -1,6 +1,10 @@
-# Project Kundial v0.3
+# Project Kundial v0.4
 
-Project Sundial Payload is a standalone part for Kerbal Space Program 1.12.x. The v0.3 release contains the v0.7.8 plugin. The source and changelog use the plugin version.
+Project Sundial Payload is a standalone part for Kerbal Space Program 1.12.x. The v0.4 release contains the v0.8.1 plugin. The source and changelog use the plugin version.
+
+## Attaching and the structural cage
+
+The payload has a stack node at its bottom (size 2) and one at its nose, and it can attach to the side of other parts and take parts on its own side. In the VAB, right-click the payload and set **Structural cage** to **On** to wrap the casing in a yellow steel frame. The cage adds 3 tonnes and 2,500 funds (`cageMass` and `cageCost` in `Sundial.cfg`), parts attached to the side sit on its outside, and it is destroyed with the payload. It is purely a visual and attachment option and does not change the blast.
 
 ## Historical background
 
@@ -10,7 +14,7 @@ The ribbed casing is a fictional depiction for KSP. The part's dimensions, mass,
 
 ## Install or upgrade
 
-1. Quit KSP and extract the [ready-to-install ZIP](https://notallyourway1.github.io/project-kundial/downloads/project-kundial-v0.3.zip). It includes the compiled plugin. If you downloaded the source ZIP, [build the plugin](#building) first.
+1. Quit KSP and extract the [ready-to-install ZIP](https://notallyourway1.github.io/project-kundial/downloads/project-kundial-v0.4.zip). It includes the compiled plugin. If you downloaded the source ZIP, [build the plugin](#building) first.
 2. Open the KSP folder that contains your existing `GameData` folder.
 3. Copy the archive's `GameData/ProjectSundial` folder into your existing `GameData`. If your file manager asks, replace the old `ProjectSundial` folder. The DLL should be at `GameData/ProjectSundial/Plugins/ProjectSundial.dll`.
 4. Start KSP and find **Project Sundial Payload** under **Utility** or search for **Sundial**. Career and Science modes unlock it with Heavy Rocketry. The v0.1 part identifier is retained for existing craft and saves.
@@ -21,7 +25,7 @@ If the part shows up in KSP but has no activation buttons in flight, check the D
 
 The 24-tonne KSP part is 11 m long and tapers from a 3.75 m body to a 2.5 m stack mount. Existing craft retain their part but may need a larger fairing and more lift capacity. Add a stock decoupler if you want to release it in flight. On an uncrewed Sandbox test craft, right-click the payload, select **Arm Sundial**, then **Start Detonation Countdown**. The fuse runs for 10 seconds of game time. **Disarm / Cancel Countdown** returns it to Safe. The editor's Action Groups tab offers the same controls.
 
-In an atmosphere, a bright textured core and its own soft halo form a fireball with a **2.8 km visual radius** (5.6 km across, scaled to Kerbin). The fireball swells from the initial flash and slows as it grows. Its surface churns and cools from white to gold-orange, with bright cream veins running across it and a soft, shifting halo. A burst close to the camera opens with a white-out flash. Smoke fades in after the fireball peaks. The hot center rises into a broad, flat-topped mushroom cap of cream billows lit by the sun, with cool blue-grey shading, glowing orange patches, a bright warm underside and a dark reddish stem that flares at its base. Animated 3D billows build the crown, rolling rim, underside and smoke column, while a low dust skirt and a pale shock front spread outward. The front follows the planet’s curvature with a raised, uneven crest and a broad, diffuse dust wake. The front travels up to about 20 km over 70 seconds, with a tall condensation wall, a trailing second crest and a dust wall that is lit orange at first and cools to tan, and it gives the flight camera a brief shake when it passes your viewpoint. The shake is weaker at higher altitudes and longer distances. For a sea-level burst on stock Kerbin, the cloud tops out near **11 km**, with a cap that fans out to roughly **27.5 km across**, about two and a half times as wide as the cloud is tall. The height is capped to 90% of the atmosphere remaining above the burst. The whole effect lasts about 80 seconds. A detonation above the atmosphere looks completely different: there is no fireball dome, ground shock front or mushroom cloud. You see a white flash and bloom, two thin shock rings that keep expanding and fade over about 19 seconds, 56 streaks of hot debris that cool from white to red, a few thin lingering wisps, a glow on the air and ground below the burst and a brief camera jolt when the camera is close. The burst keeps a minimum size on screen so it stays readable from far away, and the whole effect lasts 30 seconds. Watch the effects in flight view. Sundial temporarily widens the stock destruction-camera zoom limits to include your selected distance when the craft you are viewing is hit.
+In an atmosphere, a bright textured core and its own soft halo form a fireball with a **2.8 km visual radius** (5.6 km across, scaled to Kerbin). The fireball swells from the initial flash and slows as it grows. Its surface churns and cools from white to gold-orange, with bright cream veins running across it and a soft, shifting halo. A burst close to the camera opens with a white-out flash. Smoke fades in after the fireball peaks. The hot center rises into a broad, flat-topped mushroom cap of cream billows lit by the sun, with cool blue-grey shading, glowing orange patches, a bright warm underside and a dark reddish stem that flares at its base. Animated 3D billows build the crown, rolling rim, underside and smoke column, while a low dust skirt and a pale shock front spread outward. The front follows the planet’s curvature with a raised, uneven crest and a broad, diffuse dust wake. The front travels up to about 36 km over 95 seconds, starting fast and slowing as it spreads, with a tall condensation wall, a trailing second crest and a dust wall that is lit orange at first and cools to tan, and it gives the flight camera a brief shake when it passes your viewpoint. The shake is weaker at higher altitudes and longer distances. For a sea-level burst on stock Kerbin, the cloud tops out near **11 km**, with a cap that fans out to roughly **27.5 km across**, about two and a half times as wide as the cloud is tall. The height is capped to 90% of the atmosphere remaining above the burst. The cloud and smoke last about 80 seconds and the whole effect about 100. A white flash tints the sky and briefly lifts the ambient light, a faint shimmering shell of hot air surrounds the fireball while it cools, and a warm light rides the crest of the shock front. A detonation above the atmosphere looks completely different: there is no fireball dome, ground shock front or mushroom cloud. You see a white flash and bloom, two thin shock rings that reach about 45% farther than the debris shell, expand over 9 and 11 seconds and fade over about 30 seconds, 56 streaks of hot debris that cool from white to red, a few thin lingering wisps, a glow on the air and ground below the burst and a brief camera jolt when the camera is close. The burst keeps a minimum size on screen so it stays readable from far away, and the whole effect lasts 42 seconds. Watch the effects in flight view. Sundial temporarily widens the stock destruction-camera zoom limits to include your selected distance when the craft you are viewing is hit.
 
 In an atmosphere, the damage reaches parts within 2.2 km on same-body vessels with active physics, including the launch vehicle if it remains in range. Above the atmosphere (or on a body with none), there is no blast wave to absorb the X-rays, so the damage reaches **8 km**. Parts beyond 2.2 km are only destroyed if no other part blocks the straight line from the burst to them. Terrain does not shield. Only vessels within physics range are affected, normally about 2.5 km, so the full 8 km applies only if you have extended the loading distances. `vacuumBlastRadius` and `vacuumShielding` in the part config control this. Other Sundial payloads inside that radius detonate with their own effect. The timer persists across quicksaves and vessel switches. If the fuse expires while the payload is packed or unloaded, detonation waits until its physics resume.
 
@@ -59,6 +63,18 @@ sh build.sh "/path/to/KSP.app/Contents/Resources/Data/Managed"
 On Linux, pass the Managed directory under `KSP_Data` or `KSP_x64_Data`, depending on your install.
 
 Run `Source/BuildCasing.py ASSET_DIRECTORY FONT.ttf` with Pillow installed and the io_object_mu project’s `mu.py` on the Python module path to regenerate the casing assets.
+
+## Changes in v0.8.1
+
+- Faster and longer shockwaves. Ground: the front reaches about 36 km (`ShockRangeScale` 3.0), lasts 95 s and starts out faster; the whole effect now runs 100 s while the cloud keeps its 80 s timeline. Orbit: the rings reach 45% farther, finish expanding in 9 s and 11 s, fade over about 30 s, and the burst lasts 42 s.
+- Self-contained extras that need no other mod: a sky and ambient light flash, a shimmering heat-haze shell around the fireball, and a warm light that rides the shock crest. The haze is a glow, not true refraction.
+- Performance: the cloud sorts every third frame and rotates billows once, the fireball halo uses fixed arrays, and the shock front reuses per-row values.
+- Not run in game by the author: everything in v0.8.1. The cage and attach changes below were tested as v0.8.0.
+
+## Changes in v0.8.0
+
+- A stack node on the nose, plus surface attach in both directions (`srf` bulkhead profile).
+- Optional structural cage in the VAB (`Structural cage` toggle), with its own collider so side-attached parts sit on it. Tested in game.
 
 ## Changes in v0.7.8
 

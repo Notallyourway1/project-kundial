@@ -35,8 +35,12 @@ namespace ProjectSundial
         private readonly Vector2[] uvs;
         private readonly Color32[] colors;
         private readonly int[] triangles;
+        private Vector3[] shapeDirections;
+        private float[] shapeRippleValues;
         private int vertexCount;
         private int drawnBillows = -1;
+        private int sortedCount = -1;
+        private int frameCounter;
         private readonly Mesh mesh;
         private readonly MeshRenderer renderer;
 
@@ -54,6 +58,8 @@ namespace ProjectSundial
             renderer.receiveShadows = false;
 
             BuildShape();
+            shapeDirections = shape.ToArray();
+            shapeRippleValues = shapeRipples.ToArray();
             billows = new Billow[capacity];
             depths = new float[capacity];
             order = new int[capacity];
@@ -89,13 +95,19 @@ namespace ProjectSundial
             if (count == 0)
                 return;
 
-            // Put the farthest translucent billows first for a stable layered silhouette.
-            for (int i = 0; i < count; i++)
+            // Put the farthest translucent billows first for a stable layered silhouette. The camera
+            // barely moves relative to the cloud between frames, so re-sorting every third frame
+            // (or whenever the billow count changes) gives the same look for a third of the work.
+            if (count != sortedCount || ++frameCounter % 3 == 0)
             {
-                order[i] = i;
-                depths[i] = -(billows[i].Center - viewer).sqrMagnitude;
+                for (int i = 0; i < count; i++)
+                {
+                    order[i] = i;
+                    depths[i] = -(billows[i].Center - viewer).sqrMagnitude;
+                }
+                Array.Sort(depths, order, 0, count);
+                sortedCount = count;
             }
-            Array.Sort(depths, order, 0, count);
 
             for (int i = 0; i < count; i++)
                 AppendBillow(i, billows[order[i]], viewer, sun);
@@ -108,25 +120,34 @@ namespace ProjectSundial
                 mesh.SetVertices(vertices, 0, vertexCount);
                 mesh.SetUVs(0, uvs, 0, vertexCount);
                 mesh.SetColors(colors, 0, vertexCount);
-                mesh.SetTriangles(triangles, 0, count * faces.Count, 0, true);
+                mesh.SetTriangles(triangles, 0, count * faces.Count, 0, false);
+                mesh.bounds = FixedBounds;
                 return;
             }
 
             mesh.SetVertices(vertices, 0, vertexCount);
             mesh.SetColors(colors, 0, vertexCount);
-            mesh.RecalculateBounds();
         }
+
+        // The cloud always stays within a few tens of kilometres of the burst, so a fixed generous
+        // box saves recomputing the bounds of tens of thousands of vertices every frame.
+        private static readonly Bounds FixedBounds = new Bounds(Vector3.zero, new Vector3(300000f, 300000f, 300000f));
 
         private void AppendBillow(int slot, Billow billow, Vector3 viewer, Vector3 sun)
         {
             int first = slot * shape.Count;
             float radius = billow.Diameter * 0.5f;
             Quaternion rotation = Quaternion.Euler(billow.Rotation * 0.29f, billow.Rotation, 0f);
+            Vector3 axisX = rotation * Vector3.right;
+            Vector3 axisY = rotation * Vector3.up;
+            Vector3 axisZ = rotation * Vector3.forward;
             Vector3 view = (viewer - billow.Center).normalized;
-            for (int i = 0; i < shape.Count; i++)
+            int shapeCount = shapeDirections.Length;
+            for (int i = 0; i < shapeCount; i++)
             {
-                Vector3 direction = rotation * shape[i];
-                float ripple = shapeRipples[i];
+                Vector3 local = shapeDirections[i];
+                Vector3 direction = axisX * local.x + axisY * local.y + axisZ * local.z;
+                float ripple = shapeRippleValues[i];
                 vertices[first + i] = billow.Center + direction * radius * ripple;
 
                 float facing = Mathf.Clamp01(Vector3.Dot(direction, view));
